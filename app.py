@@ -1214,10 +1214,13 @@ else:
 
     # ── Save Plot button ──
     _sp1, _sp2 = st.columns([3, 1])
+    _auto_title = f"{y_col} vs {x_col}" + (f" & {y2_col}" if _has_y2 else "")
+    # Key includes axis names so the field resets automatically when axes change
+    _title_key  = f"plot_title_{x_col}_{y_col}_{y2_col}"
     _plot_title_input = _sp1.text_input(
         "Plot title for report",
-        value=f"{y_col} vs {x_col}" + (f" & {y2_col}" if _has_y2 else ""),
-        key="plot_title_input",
+        value=_auto_title,
+        key=_title_key,
         label_visibility="collapsed",
         placeholder="Enter plot title…"
     )
