@@ -920,14 +920,8 @@ with st.sidebar:
         st.session_state.pop("cmp_filename", None)
 
     st.divider()
-    show_debug     = st.toggle("Debug log",              value=False)
-    show_overlay   = st.toggle("Thrust + RPM overlay",   value=False)
-    show_rpm_track = st.toggle("RPM tracking chart",     value=False)
-    show_elec      = st.toggle("Electrical panel",       value=False)
-    show_temp      = st.toggle("Temperature panel",      value=False)
-    show_torque    = st.toggle("Torque",                 value=False)
-    show_accel     = st.toggle("Accelerometer",          value=False)
-    show_raw       = st.toggle("Raw data table",         value=False)
+    show_debug = st.toggle("Debug log",        value=False)
+    show_raw   = st.toggle("Raw data table",   value=False)
     st.divider()
     rpm_filter = st.slider("Min RPM filter", 0, 500, 0, step=50,
                            help="Exclude rows below this RPM (trims idle/spin-up)")
@@ -1379,7 +1373,7 @@ if not _compare_active:
 
 
 # ─────────────────────────────────────────────
-# TOGGLE-CONTROLLED CHARTS
+# CUSTOM PLOT
 # ─────────────────────────────────────────────
 try:
     import plotly.graph_objects as go
@@ -1387,79 +1381,6 @@ try:
 except ImportError:
     _plotly_ok = False
 
-if df2 is not None:
-    st.info(f"🔀 Compare mode: **{label_run1}** (solid) vs **{label_run2}** (dashed/dotted)")
-
-if show_overlay and "RPM" in df.columns and "Thrust" in df.columns:
-    st.divider()
-    st.plotly_chart(
-        pl_overlay(df, "Thrust", "RPM", "#f97316", "#38bdf8",
-                   "Thrust", "RPM", "N", "RPM", "⚡ Thrust & RPM",
-                   df2=df2, label1=label_run1, label2=label_run2),
-        use_container_width=True)
-
-if show_rpm_track and "Cmd_RPM" in df.columns and "RPM" in df.columns:
-    st.divider()
-    st.plotly_chart(
-        pl_overlay(df, "RPM", "Cmd_RPM", "#38bdf8", "#64748b",
-                   "Actual RPM", "Cmd RPM", "RPM", "RPM",
-                   "🎯 RPM Tracking — Actual vs Commanded",
-                   df2=df2, label1=label_run1, label2=label_run2),
-        use_container_width=True)
-
-if show_elec:
-    _elec_pairs = [(c, col) for c, col in
-                   [("Power","#38bdf8"),("Current","#fb923c"),("Voltage","#4ade80")]
-                   if c in df.columns]
-    if _elec_pairs:
-        st.divider()
-        st.subheader("Electrical")
-        _ecols = st.columns(len(_elec_pairs))
-        for i, (col, color) in enumerate(_elec_pairs):
-            _unit = {"Power":"W","Current":"A","Voltage":"V"}.get(col,"")
-            _ecols[i].plotly_chart(
-                pl_single(df, col, color, col, _unit, col,
-                          df2=df2, label1=label_run1, label2=label_run2),
-                use_container_width=True)
-
-if show_temp:
-    _temp_pairs = [
-        ("Motor_Temp","#f97316"), ("ESC_Temp","#a78bfa"),
-        ("Motor_Inlet_Temp_C","#34d399"), ("ESC_Inlet_Temp_C","#fb7185"),
-        ("Fin_Inlet_Temp_C","#fbbf24"), ("Fin_Outlet_Temp_C","#60a5fa"),
-    ]
-    _avail_temps = [(c, col) for c, col in _temp_pairs if c in df.columns]
-    if _avail_temps:
-        st.divider()
-        st.subheader("Temperatures")
-        st.plotly_chart(
-            pl_multi(df, _avail_temps, "🌡️ Temperature Channels", unit="°C",
-                     df2=df2, label1=label_run1, label2=label_run2),
-            use_container_width=True)
-
-if show_torque and "Torque" in df.columns and df["Torque"].abs().max() > 0:
-    st.divider()
-    st.subheader("Torque")
-    st.plotly_chart(
-        pl_single(df, "Torque", "#e879f9", "Torque", "Nm", "🔩 Torque",
-                  df2=df2, label1=label_run1, label2=label_run2),
-        use_container_width=True)
-
-if show_accel:
-    _accel_pairs = [(c, col) for c, col in
-                    [("Accel_X","#f43f5e"),("Accel_Y","#22d3ee"),("Accel_Z","#a3e635")]
-                    if c in df.columns]
-    if _accel_pairs:
-        st.divider()
-        st.subheader("Accelerometer")
-        st.plotly_chart(
-            pl_multi(df, _accel_pairs, "📡 Accelerometer X/Y/Z", unit="g",
-                     df2=df2, label1=label_run1, label2=label_run2),
-            use_container_width=True)
-
-# ─────────────────────────────────────────────
-# CUSTOM PLOT
-# ─────────────────────────────────────────────
 st.divider()
 st.subheader("📈 Custom Plot")
 
@@ -1575,6 +1496,61 @@ else:
                + (f"  |  vs **{label_run2}**" if _df_plot2 is not None else "")
                + f"  |  {_ds_note}")
 
+    # ── Save Plot button ──
+    _sp1, _sp2 = st.columns([3, 1])
+    _plot_title_input = _sp1.text_input(
+        "Plot title for report",
+        value=f"{y_col} vs {x_col}" + (f" & {y2_col}" if _has_y2 else ""),
+        key="plot_title_input",
+        label_visibility="collapsed",
+        placeholder="Enter plot title…"
+    )
+    if _sp2.button("💾 Save Plot", type="primary", use_container_width=True, key="save_plot_btn"):
+        # Render current selection as matplotlib PNG for PDF
+        if "saved_plots" not in st.session_state:
+            st.session_state["saved_plots"] = []
+
+        # Build matplotlib version of current plot for PDF embedding
+        with plt.style.context(DARK):
+            _pdf_fig, _pdf_ax1 = plt.subplots(figsize=(11, 3.4))
+            _step_pdf = max(1, len(_df_plot) // 5000)
+            _dfp = _df_plot.iloc[::_step_pdf]
+            _pdf_ax1.plot(_dfp[x_col], _dfp[y_col],
+                          color=_C1, linewidth=1.4, label=y_col)
+            _pdf_ax1.set_xlabel(x_col, fontsize=8)
+            _pdf_ax1.set_ylabel(y_col, color=_C1, fontsize=8)
+            _pdf_ax1.tick_params(axis="y", colors=_C1)
+            if _has_y2:
+                _pdf_ax2 = _pdf_ax1.twinx()
+                _pdf_ax2.plot(_dfp[x_col], _dfp[y2_col],
+                              color=_C2, linewidth=1.2,
+                              linestyle="--", label=y2_col)
+                _pdf_ax2.set_ylabel(y2_col, color=_C2, fontsize=8)
+                _pdf_ax2.tick_params(axis="y", colors=_C2)
+                _pdf_fig.legend(loc="upper left", fontsize=8,
+                                bbox_to_anchor=(0.08, 0.95))
+            _pdf_fig.tight_layout()
+        _png = fig_to_png(_pdf_fig)
+
+        # Check for duplicate title
+        _existing_titles = [p["title"] for p in st.session_state["saved_plots"]]
+        _save_title = _plot_title_input or f"{y_col} vs {x_col}"
+        if _save_title in _existing_titles:
+            # Update existing
+            for _p in st.session_state["saved_plots"]:
+                if _p["title"] == _save_title:
+                    _p["png"] = _png
+            st.toast(f"Updated: {_save_title}", icon="✅")
+        else:
+            st.session_state["saved_plots"].append({
+                "title": _save_title,
+                "png":   _png,
+                "x":     x_col,
+                "y":     y_col,
+                "y2":    y2_col if _has_y2 else None,
+            })
+            st.toast(f"Saved: {_save_title}", icon="✅")
+
     # ── Compare diff table ──
     if df2 is not None:
         st.divider()
@@ -1599,6 +1575,22 @@ else:
         if _diff_rows:
             st.dataframe(pd.DataFrame(_diff_rows).set_index("Metric"),
                          use_container_width=True)
+
+# ── Saved Plots Gallery ──
+_saved_plots = st.session_state.get("saved_plots", [])
+if _saved_plots:
+    st.divider()
+    st.subheader(f"📌 Saved Plots ({len(_saved_plots)}) — these will appear in PDF report")
+    for _idx, _sp in enumerate(_saved_plots):
+        _ga, _gb = st.columns([5, 1])
+        _ga.markdown(f"**{_idx+1}. {_sp['title']}**  "
+                     + (f"`{_sp['x']} × {_sp['y']}`" if _sp.get('x') else ""))
+        if _gb.button("🗑 Remove", key=f"rm_plot_{_idx}", use_container_width=True):
+            st.session_state["saved_plots"].pop(_idx)
+            st.rerun()
+        # Show thumbnail
+        st.image(_sp["png"], width=700)
+        st.divider()
 
 # RAW TABLE
 # ─────────────────────────────────────────────
@@ -1787,86 +1779,9 @@ else:
             _ip_sess = st.session_state.get(f"ip_{filename}", {})
             pdf_data.update({k: str(v) for k, v in _ip_sess.items()})
 
-            # ── Collect toggled-on charts as PNG ──
-            chart_images = []
-
-            def _savefig(fig, title):
-                chart_images.append((title, fig_to_png(fig)))
-
-            if show_overlay and "RPM" in df.columns:
-                _savefig(make_overlay_plot(df,"Thrust","RPM","#f97316","#38bdf8",
-                         "Thrust","RPM","N","RPM","Thrust & RPM — Dual Axis"),
-                         "Thrust & RPM — Dual Axis")
-            else:
-                if "Thrust" in df.columns:
-                    _savefig(make_single_plot(df,"Thrust","#f97316","Thrust","N","Thrust"),
-                             "Thrust over Time")
-                if "RPM" in df.columns:
-                    _savefig(make_single_plot(df,"RPM","#38bdf8","RPM","RPM","Actual RPM"),
-                             "RPM over Time")
-
-            if show_rpm_track and "Cmd_RPM" in df.columns and "RPM" in df.columns:
-                with plt.style.context(DARK):
-                    fig_rt2, ax2 = plt.subplots(figsize=(12,2.8))
-                    ax2.plot(df["Time"],df["Cmd_RPM"],color="#64748b",lw=1.2,
-                             linestyle="--",label="Commanded RPM",alpha=0.9)
-                    ax2.plot(df["Time"],df["RPM"],color="#38bdf8",lw=1.4,label="Actual RPM")
-                    ax2.set_title("RPM Tracking",fontsize=9,fontweight="bold")
-                    ax2.set_xlabel("Time (s)",fontsize=8)
-                    ax2.set_ylabel("RPM",fontsize=8)
-                    ax2.legend(fontsize=8)
-                    fig_rt2.tight_layout()
-                _savefig(fig_rt2, "RPM Tracking — Commanded vs Actual")
-
-            if show_elec:
-                for col,color,label in [("Power","#38bdf8","Power (W)"),
-                                         ("Current","#fb923c","Current (A)"),
-                                         ("Voltage","#4ade80","Voltage (V)")]:
-                    if col in df.columns:
-                        _savefig(make_single_plot(df,col,color,label.split()[0],
-                                 label.split("(")[1].rstrip(")"),label), label)
-
-            if show_temp:
-                aliased_t = {"Motor_Temp":("#f97316","Motor Temp °C"),
-                             "ESC_Temp":  ("#a78bfa","ESC Temp °C")}
-                extra_t = [c for c in df.columns if ("Temp" in c or "temp" in c)
-                           and c not in aliased_t]
-                all_tp2 = [(col,clr,lbl) for col,(clr,lbl) in aliased_t.items()
-                           if col in df.columns]
-                pal2 = ["#34d399","#fb7185","#fbbf24","#60a5fa"]
-                for i,col in enumerate(extra_t[:4]):
-                    all_tp2.append((col,pal2[i%4],col.replace("_"," ")))
-                if all_tp2:
-                    with plt.style.context(DARK):
-                        fig_t2, ax_t2 = plt.subplots(figsize=(12,3.0))
-                        for col,clr,lbl in all_tp2:
-                            ax_t2.plot(df["Time"],df[col],color=clr,lw=1.3,label=lbl)
-                        ax_t2.set_title("Temperature channels",fontsize=9,fontweight="bold")
-                        ax_t2.set_xlabel("Time (s)",fontsize=8)
-                        ax_t2.set_ylabel("Temperature (°C)",fontsize=8)
-                        ax_t2.legend(fontsize=8,loc="upper left",ncols=2)
-                        fig_t2.tight_layout()
-                    _savefig(fig_t2, "Temperature Channels over Time")
-
-            if show_torque and "Torque" in df.columns and df["Torque"].max() > 0:
-                _savefig(make_single_plot(df,"Torque","#e879f9","Torque","Nm","ESC Torque"),
-                         "ESC Torque over Time")
-
-            if show_accel:
-                accel_p2 = [(c,col) for c,col in
-                            [("Accel_X","#f43f5e"),("Accel_Y","#22d3ee"),("Accel_Z","#a3e635")]
-                            if c in df.columns]
-                if accel_p2:
-                    with plt.style.context(DARK):
-                        fig_ac2, ax_ac2 = plt.subplots(figsize=(12,2.8))
-                        for col,clr in accel_p2:
-                            ax_ac2.plot(df["Time"],df[col],color=clr,lw=1.0,label=f"{col} (g)")
-                        ax_ac2.set_title("Accelerometer X/Y/Z",fontsize=9,fontweight="bold")
-                        ax_ac2.set_xlabel("Time (s)",fontsize=8)
-                        ax_ac2.set_ylabel("Acceleration (g)",fontsize=8)
-                        ax_ac2.legend(fontsize=8)
-                        fig_ac2.tight_layout()
-                    _savefig(fig_ac2, "Accelerometer — X / Y / Z")
+            # ── Charts come from saved plots in session state ──
+            _saved = st.session_state.get("saved_plots", [])
+            chart_images = [(p["title"], p["png"]) for p in _saved]
 
             # ── Run name for PDF title ──
             _rname = (_db_row_dl["display_name"] if _db_row_dl and _db_row_dl.get("display_name")
@@ -1881,4 +1796,5 @@ else:
             "application/pdf",
             use_container_width=True,
         )
-        st.success(f"✅ PDF ready — {len(chart_images)} chart(s) included.")
+        _n = len(st.session_state.get("saved_plots", []))
+        st.success(f"✅ PDF ready — {_n} saved plot(s) included.")
