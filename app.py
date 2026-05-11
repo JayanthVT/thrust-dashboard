@@ -115,48 +115,32 @@ with st.sidebar:
     st.markdown("## 🚀 Thrust Test Rig")
     st.divider()
 
-    sidebar_mode = st.radio(
-        "Mode", ["📂 Log Library", "⬆️ Upload New Log"],
-        label_visibility="collapsed"
-    )
-    st.divider()
-
-    if sidebar_mode == "📂 Log Library":
-        _folders = fetch_folders(DB_PATH)
-        if _folders:
-            st.markdown("**Folders**")
-            if st.button("📋 All runs", use_container_width=True, key="folder_all"):
-                st.session_state["active_folder"] = None
-                st.session_state["mode"] = "explorer"
-                st.rerun()
-            for _f in _folders:
-                _n = len(fetch_all_runs(folder=_f, db_path=DB_PATH))
-                if st.button(f"📁 {_f}  ({_n})", use_container_width=True,
-                             key=f"folder_{_f}"):
-                    st.session_state["active_folder"] = _f
-                    st.session_state["mode"] = "explorer"
-                    st.rerun()
-        else:
-            st.caption("No saved runs yet. Import a log to get started.")
-
-        if (st.session_state.get("mode") == "library"
-                and st.session_state.get("selected_run")):
-            st.divider()
-            if st.button("← Back to Library", use_container_width=True):
-                st.session_state["mode"] = "explorer"
-                st.rerun()
-
-        if st.session_state.get("mode") not in ("library", "explorer"):
+    _folders = fetch_folders(DB_PATH)
+    if _folders:
+        st.markdown("**Folders**")
+        if st.button("📋 All runs", use_container_width=True, key="folder_all"):
+            st.session_state["active_folder"] = None
             st.session_state["mode"] = "explorer"
-
+            st.rerun()
+        for _f in _folders:
+            _n = len(fetch_all_runs(folder=_f, db_path=DB_PATH))
+            if st.button(f"📁 {_f}  ({_n})", use_container_width=True,
+                         key=f"folder_{_f}"):
+                st.session_state["active_folder"] = _f
+                st.session_state["mode"] = "explorer"
+                st.rerun()
     else:
-        uploaded = st.file_uploader(
-            "Upload log file",
-            type=["xlsx", "xlsm", "xls", "csv", "txt"],
-            label_visibility="collapsed"
-        )
-        st.session_state["mode"]          = "upload"
-        st.session_state["uploaded_file"] = uploaded
+        st.caption("No saved runs yet. Import a log to get started.")
+
+    if (st.session_state.get("mode") == "library"
+            and st.session_state.get("selected_run")):
+        st.divider()
+        if st.button("← Back to Library", use_container_width=True):
+            st.session_state["mode"] = "explorer"
+            st.rerun()
+
+    if st.session_state.get("mode") not in ("library", "explorer"):
+        st.session_state["mode"] = "explorer"
 
     st.divider()
     st.markdown("**Compare mode**")
@@ -216,13 +200,9 @@ if mode == "library":
         st.info("👈 Select a run from the Log Library.")
         st.stop()
 
-elif mode == "upload":
-    uploaded_file = st.session_state.get("uploaded_file")
-    if not uploaded_file:
-        st.info("👈 Upload a `.xlsx` or `.csv` log file, or switch to **Log Library**.")
-        st.stop()
-    df       = load_file_from_upload(uploaded_file, logs)
-    filename = uploaded_file.name
+else:
+    st.session_state["mode"] = "explorer"
+    st.rerun()
 
 if df is None:
     st.error("Could not parse the file.")

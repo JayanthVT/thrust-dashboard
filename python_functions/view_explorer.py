@@ -32,13 +32,14 @@ def render_explorer(logs_dir: Path):
         "📂 Log Library" + (f" — {active_folder}" if active_folder else " — All Runs")
     )
 
-    # Import file uploader (right column)
+    # Import file uploader — key includes counter so it resets after successful import
     with _ex3:
+        _uploader_key = f"explorer_import_{st.session_state.get('import_counter', 0)}"
         _imp_file = st.file_uploader(
             "Import log",
             type=["xlsx", "xlsm", "xls", "csv", "txt"],
             label_visibility="collapsed",
-            key="explorer_import"
+            key=_uploader_key
         )
         if _imp_file:
             st.session_state["pending_import"] = _imp_file
@@ -96,12 +97,17 @@ def render_explorer(logs_dir: Path):
                     _imp_params,
                     folder=_imp_folder or "Uncategorised"
                 )
+                # Clear form — increment counter resets the uploader widget
                 st.session_state.pop("pending_import", None)
+                st.session_state["import_counter"] = \
+                    st.session_state.get("import_counter", 0) + 1
                 st.success(f"✅ '{_imp_name}' imported to folder '{_imp_folder}'")
                 st.rerun()
 
         if st.button("✕ Cancel", key="imp_cancel"):
             st.session_state.pop("pending_import", None)
+            st.session_state["import_counter"] = \
+                st.session_state.get("import_counter", 0) + 1
             st.rerun()
 
         st.divider()
@@ -183,3 +189,21 @@ def render_explorer(logs_dir: Path):
                     st.rerun()
 
         st.divider()
+        st.divider()
+
+    with st.expander("📋 Expected column schema"):
+        st.markdown("""
+| Dashboard name | Source column |
+|---|---|
+| Time | `Timestamp` |
+| Thrust | `Net_Thrust_N` |
+| RPM | `Actual_RPM` |
+| Cmd_RPM | `Commanded_RPM` |
+| Motor_Temp | `Motor_Temp_C` |
+| ESC_Temp | `ESC_Temp_C` |
+| Power | `Power_W` |
+| Current | `Current_A` |
+| Voltage | `DC_Voltage_V` |
+| Torque | `Torque(0.23m)` |
+| Accel X/Y/Z | `Accel_X_g / Accel_Y_g / Accel_Z_g` |
+        """)
