@@ -158,8 +158,9 @@ with st.sidebar:
         st.session_state.pop("cmp_filename", None)
 
     st.divider()
-    show_debug = st.toggle("Debug log",      value=False)
-    show_raw   = st.toggle("Raw data table", value=False)
+    show_debug        = st.toggle("Debug log",           value=False)
+    show_raw          = st.toggle("Cleaned data table",  value=False)
+    show_raw_original = st.toggle("Original raw data",   value=False)
     st.divider()
     rpm_filter = st.slider("Min RPM filter", 0, 500, 0, step=50,
                            help="Exclude rows below this RPM")
@@ -211,6 +212,7 @@ if df is None:
 
 # ── Clean pipeline ──
 logs.append(f"📋 Raw: {df.shape[0]} rows × {df.shape[1]} cols")
+df_raw = df.copy()   # ← preserved before any cleaning or renaming
 df = normalize_columns(df, logs)
 df = parse_time(df, logs)
 df = clean_and_drop(df, logs)
@@ -301,7 +303,14 @@ render_saved_plots_gallery()
 if show_raw:
     st.divider()
     st.subheader("Cleaned data table")
+    st.caption(f"{len(df):,} rows × {df.shape[1]} cols — column names normalised, time converted to elapsed seconds, NaN rows dropped")
     st.dataframe(df.reset_index(drop=True), use_container_width=True)
+
+if show_raw_original:
+    st.divider()
+    st.subheader("Original raw data")
+    st.caption(f"{len(df_raw):,} rows × {df_raw.shape[1]} cols — exactly as loaded from file, no changes")
+    st.dataframe(df_raw.reset_index(drop=True), use_container_width=True)
 
 # ── Update parameters + downloads ──
 render_update_parameters(df, filename, LOGS_DIR, mode)
