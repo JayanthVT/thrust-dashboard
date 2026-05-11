@@ -121,7 +121,10 @@ def parse_time(df: pd.DataFrame, logs: list) -> pd.DataFrame:
         return df
 
     # Layer 3: datetime string parse
-    parsed = pd.to_datetime(col, errors="coerce")
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        parsed = pd.to_datetime(col, errors="coerce")
     if parsed.notna().sum() / max(len(df), 1) > 0.5:
         df["Time"] = (parsed - parsed.iloc[0]).dt.total_seconds()
         logs.append(f"✅ String → elapsed s ({float(df['Time'].max()):.1f}s)")
@@ -132,6 +135,26 @@ def parse_time(df: pd.DataFrame, logs: list) -> pd.DataFrame:
     if num.notna().sum() / max(len(df), 1) > 0.5:
         df["Time"] = num
         logs.append("✅ Time coerced to numeric.")
+        return df
+
+    # Layer 5: MM:SS.f format (e.g. "34:15.6" → 2055.6 seconds)
+    def _parse_mmss(val):
+        try:
+            parts = str(val).strip().split(":")
+            if len(parts) == 2:
+                return int(parts[0]) * 60 + float(parts[1])
+            if len(parts) == 3:   # HH:MM:SS.f
+                return int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
+        except Exception:
+            pass
+        return None
+
+    mmss = col.apply(_parse_mmss)
+    if mmss.notna().sum() / max(len(df), 1) > 0.5:
+        # Convert to elapsed seconds from first value
+        first = mmss.dropna().iloc[0]
+        df["Time"] = (mmss - first).round(3)
+        logs.append(f"✅ MM:SS format → elapsed s ({float(df['Time'].max()):.1f}s)")
         return df
 
     # Last resort: row index as proxy
