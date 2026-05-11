@@ -84,11 +84,11 @@ def render_test_summary(df: pd.DataFrame):
     _lookup_rpm = _lc1.number_input(
         "Target RPM",
         min_value=0, max_value=int(df["RPM"].max()),
-        value=int(_pr_rpm), step=50, key="rpm_lookup"
+        value=int(_pr_rpm), step=100, key="rpm_lookup"
     )
     _tol = _lc2.number_input(
         "Tolerance ±", min_value=1, max_value=200,
-        value=25, step=5, key="rpm_tol",
+        value=5, step=5, key="rpm_tol",
         help="RPM band around target — rows within ±tolerance are averaged"
     )
     _band = df[(df["RPM"] >= _lookup_rpm - _tol) & (df["RPM"] <= _lookup_rpm + _tol)]
