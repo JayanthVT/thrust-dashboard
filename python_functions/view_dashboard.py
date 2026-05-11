@@ -301,7 +301,7 @@ def render_initial_parameters(df: pd.DataFrame, filename: str):
     _defaults = default_init_params(df)
     ip = {**_defaults, **_saved_ip}
 
-    with st.expander("📋 Initial Parameters", expanded=True):
+    with st.expander("📋 Initial Parameters", expanded=False):
         if _db_row:
             st.caption("✅ Loaded from library — edit and click **Update Parameters** to save.")
         else:
