@@ -59,8 +59,10 @@ def render_test_summary(df: pd.DataFrame):
     _r1[3].metric("Current",          f"{_pr_curr:.1f} A"  if _pr_curr  else "—")
     _r1[4].metric("Electrical Power", f"{_pr_pelec:.0f} W" if _pr_pelec else "—",
                   help="Electrical Power = DC Voltage × Current")
-    _r1[5].metric("Thrust",
-                  f"{_safe(_pr, 'Thrust'):.1f} N" if _safe(_pr, "Thrust") is not None else "—")
+    _peak_thrust = df["Thrust"].max() if "Thrust" in df.columns else None
+    _r1[5].metric("Peak Thrust",
+                  f"{_peak_thrust:.1f} N" if _peak_thrust is not None else "—",
+                  help="Maximum thrust over the full run — not tied to peak RPM moment")
 
     st.divider()
 
