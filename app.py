@@ -222,6 +222,14 @@ if rpm_filter > 0 and "RPM" in df.columns:
     df = df[df["RPM"] >= rpm_filter].copy()
     logs.append(f"🔧 RPM filter ≥{rpm_filter}: {len(df)}/{_before} rows kept")
 
+# ── Derived columns ──
+if all(c in df.columns for c in ["Thrust", "Voltage", "Current"]):
+    _p_elec = df["Voltage"] * df["Current"]
+    df["Overall_Efficiency_gW"] = (
+        (df["Thrust"] * 101.972) / _p_elec
+    ).replace([np.inf, -np.inf], np.nan)
+    logs.append("✅ Added Overall_Efficiency_gW column = (Thrust × 101.972) / (V × I)")
+
 try:
     _time_max_str = f"{float(df['Time'].max()):.1f}s"
 except Exception:

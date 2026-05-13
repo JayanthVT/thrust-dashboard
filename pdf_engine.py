@@ -1,11 +1,11 @@
 """
 pdf_engine.py — Thrust Test Rig PDF Report Generator
 Builds a styled reportlab PDF from a data dict + chart images.
+Completely independent — no Excel template required.
 Edit this file to change PDF layout, colours, sections, or formatting.
 """
 
 import io
-import re
 import matplotlib.pyplot as plt
 from pathlib import Path
 
@@ -19,10 +19,9 @@ from reportlab.platypus import (
     Image, PageBreak, KeepTogether
 )
 
-# ── Paths (resolved relative to this file's location) ──
-BASE_DIR      = Path(__file__).parent
-TEMPLATE_PATH = BASE_DIR / "Format.xlsx"
-LOGO_PATH     = BASE_DIR / "ideaforge-logo.jpeg"
+# ── Paths ──
+BASE_DIR  = Path(__file__).parent
+LOGO_PATH = BASE_DIR / "ideaforge-logo.jpeg"
 
 # ── Colours ──
 NAVY  = rl_colors.HexColor("#1B5E20")   # IdeaForge dark green
@@ -48,29 +47,7 @@ def _banner(txt, sty, bg, W, pad=7):
     return t
 
 
-def _resolve(data, text):
-    """Replace all {{key}} placeholders in text with values from data dict."""
-    def _repl(m):
-        key = m.group(1).strip()
-        val = data.get(key, "")
-        try:
-            fv = float(val)
-            if key in ("max_rpm", "target_rpm", "num_rows"):
-                return f"{int(fv):,}"
-            elif key in ("duration_s", "time_at_target_rpm"):
-                return f"{fv:.1f}"
-            elif key == "overall_efficiency":
-                return f"{fv:.4f}"
-            elif key == "mechanical_efficiency":
-                return f"{fv:.2f}"
-            else:
-                return f"{fv:.3f}".rstrip("0").rstrip(".")
-        except (ValueError, TypeError):
-            return str(val) if val not in (None, "") else "—"
-    return re.sub(r"\{\{(\w+)\}\}", _repl, str(text))
-
-
-def build_pdf_report(data, chart_images, run_name, template_path=None):
+def build_pdf_report(data, chart_images, run_name):
     """
     Build and return PDF bytes.
 
@@ -78,23 +55,10 @@ def build_pdf_report(data, chart_images, run_name, template_path=None):
         data:          dict of placeholder_key → value
         chart_images:  list of (title_str, png_bytes)
         run_name:      string shown in the header banner
-        template_path: optional Path override for Format.xlsx
 
     Returns:
         bytes — the complete PDF
     """
-    tpl = template_path or TEMPLATE_PATH
-
-    # ── Fill Format.xlsx placeholders (for reference / future LibreOffice use) ──
-    if tpl.exists():
-        import openpyxl as _oxl
-        wb = _oxl.load_workbook(tpl)
-        ws = wb.active
-        for row in ws.iter_rows():
-            for cell in row:
-                if cell.value and isinstance(cell.value, str) and "{{" in cell.value:
-                    cell.value = _resolve(data, cell.value)
-
     # ── Build PDF ──
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4,
