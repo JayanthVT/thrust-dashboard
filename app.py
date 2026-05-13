@@ -285,10 +285,10 @@ if not _compare_active:
             {run_meta['display_name']}
           </div>
           <div style="font-size:0.8rem;color:#9ca3af">
-            {run_meta['num_rows']:,} rows &nbsp;|&nbsp;
-            {run_meta['duration_s']:.1f}s &nbsp;|&nbsp;
-            Max Thrust {run_meta['max_thrust_n']:.1f} N &nbsp;|&nbsp;
-            Max RPM {int(run_meta['max_rpm']):,}
+            {int(run_meta['num_rows'] or 0):,} rows &nbsp;|&nbsp;
+            {(run_meta['duration_s'] or 0):.1f}s &nbsp;|&nbsp;
+            Max Thrust {f"{run_meta['max_thrust_n']:.1f} N" if run_meta['max_thrust_n'] is not None else "—"} &nbsp;|&nbsp;
+            Max RPM {f"{int(run_meta['max_rpm']):,}" if run_meta['max_rpm'] is not None else "—"}
           </div>
         </div>
         """, unsafe_allow_html=True)
