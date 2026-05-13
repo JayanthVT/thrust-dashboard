@@ -31,70 +31,50 @@ def _safe(row, col):
 # TEST SUMMARY
 # ─────────────────────────────────────────────
 def render_test_summary(df: pd.DataFrame):
-    """Render the three-row test summary section."""
+    """Render test summary — 4 key metrics then RPM lookup."""
     st.subheader("Test summary")
 
     if "RPM" not in df.columns or df.empty:
         _mcols = st.columns(4)
-        _mcols[0].metric("Max Thrust",   f"{df['Thrust'].max():.1f} N"    if "Thrust"   in df.columns else "—")
-        _mcols[1].metric("Max ESC Temp", f"{df['ESC_Temp'].max():.1f} °C" if "ESC_Temp" in df.columns else "—")
-        _mcols[2].metric("Duration",     f"{df['Time'].max():.1f} s")
-        _mcols[3].metric("Data points",  f"{len(df):,}")
+        _mcols[0].metric("Peak Thrust",   f"{df['Thrust'].max():.1f} N"    if "Thrust"   in df.columns else "—")
+        _mcols[1].metric("Max ESC Temp",  f"{df['ESC_Temp'].max():.1f} °C" if "ESC_Temp"  in df.columns else "—")
+        _mcols[2].metric("Max Motor Temp",f"{df['Motor_Temp'].max():.1f} °C" if "Motor_Temp" in df.columns else "—")
+        _mcols[3].metric("Duration",      f"{df['Time'].max():.1f} s")
         return
 
-    # ── Row 1: Peak RPM snapshot ──
-    _rpm_idx        = df["RPM"].idxmax()
-    _pr             = df.loc[_rpm_idx]
-    _pr_time        = _pr["Time"]
-    _pr_rpm         = _pr["RPM"]
-    _pr_volt        = _safe(_pr, "Voltage")
-    _pr_curr        = _safe(_pr, "Current")
-    _pr_pelec       = (_pr_volt * _pr_curr) if (_pr_volt and _pr_curr) else None
+    # ── Row 1: 4 key metrics ──
+    _rpm_idx     = df["RPM"].idxmax()
+    _pr          = df.loc[_rpm_idx]
+    _pr_rpm      = _pr["RPM"]
+    _peak_thrust = df["Thrust"].max()     if "Thrust"     in df.columns else None
+    _max_esc     = df["ESC_Temp"].max()   if "ESC_Temp"   in df.columns else None
+    _max_motor   = df["Motor_Temp"].max() if "Motor_Temp" in df.columns else None
 
-    st.caption("🔴 **Peak RPM** — all values at the moment of max RPM")
-    _r1 = st.columns(6)
-    _r1[0].metric("Timestamp",        _fmt_time(_pr_time))
-    _r1[1].metric("Max RPM",          f"{int(_pr_rpm):,}")
-    _r1[2].metric("DC Voltage",       f"{_pr_volt:.1f} V"  if _pr_volt  else "—")
-    _r1[3].metric("Current",          f"{_pr_curr:.1f} A"  if _pr_curr  else "—")
-    _r1[4].metric("Electrical Power", f"{_pr_pelec:.0f} W" if _pr_pelec else "—",
-                  help="Electrical Power = DC Voltage × Current")
-    _peak_thrust = df["Thrust"].max() if "Thrust" in df.columns else None
-    _r1[5].metric("Peak Thrust",
-                  f"{_peak_thrust:.1f} N" if _peak_thrust is not None else "—",
-                  help="Maximum thrust over the full run — not tied to peak RPM moment")
+    _r1 = st.columns(4)
+    _r1[0].metric("Peak RPM",       f"{int(_pr_rpm):,}")
+    _r1[1].metric("Peak Thrust",    f"{_peak_thrust:.1f} N"  if _peak_thrust is not None else "—",
+                  help="Maximum thrust over full run")
+    _r1[2].metric("Max ESC Temp",   f"{_max_esc:.1f} °C"    if _max_esc    is not None else "—")
+    _r1[3].metric("Max Motor Temp", f"{_max_motor:.1f} °C"  if _max_motor  is not None else "—")
 
     st.divider()
 
-    # ── Row 2: Temperatures (max over full run) ──
-    st.caption("🌡️ **Temperatures** — max over full run")
-    _r2 = st.columns(4)
-    _r2[0].metric("Max Motor Temp",
-                  f"{df['Motor_Temp'].max():.1f} °C" if "Motor_Temp" in df.columns else "—")
-    _r2[1].metric("Max ESC Temp",
-                  f"{df['ESC_Temp'].max():.1f} °C"   if "ESC_Temp"   in df.columns else "—")
-    _r2[2].metric("Duration",    f"{df['Time'].max():.1f} s")
-    _r2[3].metric("Data points", f"{len(df):,}")
-
-    st.divider()
-
-    # ── Row 3: RPM lookup ──
+    # ── RPM lookup ──
     st.caption("🔍 **RPM lookup** — type any RPM to see values at that operating point")
-    _lc1, _lc2, _lc3 = st.columns([1, 1, 4])
+    _lc1, _lc2 = st.columns([1, 1])
     _lookup_rpm = _lc1.number_input(
-        "Target RPM",
-        min_value=0, max_value=int(df["RPM"].max()),
-        value=int(_pr_rpm), step=100, key="rpm_lookup"
+        "Target RPM", min_value=0, max_value=int(_pr_rpm),
+        value=int(_pr_rpm), step=50, key="rpm_lookup"
     )
     _tol = _lc2.number_input(
         "Tolerance ±", min_value=1, max_value=200,
-        value=5, step=5, key="rpm_tol",
-        help="RPM band around target — rows within ±tolerance are averaged"
+        value=25, step=5, key="rpm_tol",
+        help="Rows within ±tolerance RPM are averaged"
     )
     _band = df[(df["RPM"] >= _lookup_rpm - _tol) & (df["RPM"] <= _lookup_rpm + _tol)]
 
     if len(_band) == 0:
-        st.warning(f"No data found within ±{_tol} RPM of {_lookup_rpm}.")
+        st.warning(f"No data within ±{_tol} RPM of {_lookup_rpm}.")
     else:
         _lv   = _band["Voltage"].mean()    if "Voltage"    in _band.columns else None
         _li   = _band["Current"].mean()    if "Current"    in _band.columns else None
@@ -104,13 +84,13 @@ def render_test_summary(df: pd.DataFrame):
         _let  = _band["ESC_Temp"].mean()   if "ESC_Temp"   in _band.columns else None
         _lrpm = _band["RPM"].mean()
 
-        st.caption(f"Showing mean over {len(_band)} rows  |  actual RPM mean: {_lrpm:.1f}")
+        st.caption(f"Mean over {len(_band)} rows  |  actual RPM: {_lrpm:.1f}")
         _lr = st.columns(6)
         _lr[0].metric("Actual RPM",       f"{_lrpm:.1f}")
         _lr[1].metric("DC Voltage",       f"{_lv:.1f} V"  if _lv  is not None else "—")
         _lr[2].metric("Current",          f"{_li:.1f} A"  if _li  is not None else "—")
         _lr[3].metric("Electrical Power", f"{_lpe:.0f} W" if _lpe is not None else "—",
-                      help="Electrical Power = DC Voltage × Current")
+                      help="V × I")
         _lr[4].metric("Thrust",           f"{_lt:.1f} N"  if _lt  is not None else "—")
         _lr[5].metric("Motor / ESC Temp",
                       f"{_lmt:.1f} / {_let:.1f} °C"
@@ -301,7 +281,7 @@ def render_initial_parameters(df: pd.DataFrame, filename: str):
     _defaults = default_init_params(df)
     ip = {**_defaults, **_saved_ip}
 
-    with st.expander("📋 Initial Parameters", expanded=False):
+    with st.expander("📋 Initial Parameters", expanded=True):
         if _db_row:
             st.caption("✅ Loaded from library — edit and click **Update Parameters** to save.")
         else:

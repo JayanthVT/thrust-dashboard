@@ -158,9 +158,10 @@ with st.sidebar:
         st.session_state.pop("cmp_filename", None)
 
     st.divider()
-    show_debug        = st.toggle("Debug log",           value=False)
-    show_raw          = st.toggle("Cleaned data table",  value=False)
-    show_raw_original = st.toggle("Original raw data",   value=False)
+    show_debug        = st.toggle("Debug log",               value=False)
+    show_meas         = st.toggle("Measurable Parameters",   value=False)
+    show_raw          = st.toggle("Cleaned data table",      value=False)
+    show_raw_original = st.toggle("Original raw data",       value=False)
     st.divider()
     rpm_filter = st.slider("Min RPM filter", 0, 500, 0, step=50,
                            help="Exclude rows below this RPM")
@@ -295,8 +296,9 @@ if not _compare_active:
     # ── Dashboard sections (hidden in compare mode) ──
     render_test_summary(df)
     st.divider()
-    render_measurable_parameters(df)
-    st.divider()
+    if show_meas:
+        render_measurable_parameters(df)
+        st.divider()
     render_initial_parameters(df, filename)
     st.divider()
 
