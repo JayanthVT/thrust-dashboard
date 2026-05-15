@@ -16,23 +16,23 @@ from pathlib import Path
 # Add new aliases here when new log formats arrive.
 # ─────────────────────────────────────────────
 COLUMN_ALIASES = {
-    "Time":         ["Timestamp", "Time", "time", "timestamp", "T", "elapsed"],
-    "Thrust":       ["Net_Thrust_N", "Thrust", "thrust", "Force_N", "ThrustN"],
-    "RPM":          ["Actual_RPM", "RPM", "rpm", "Motor_RPM", "actual_rpm"],
-    "Cmd_RPM":      ["Commanded_RPM", "Cmd_RPM", "commanded_rpm", "Target_RPM"],
-    "Motor_Temp":   ["Motor_Temp_C", "Motor_Temp", "motor_temp_c"],
-    "ESC_Temp":     ["ESC_Temp_C", "ESC_Temp", "esc_temp_c", "esc_temp"],
-    "Power":        ["Power_W", "Power", "power_w"],
-    "Current":      ["Current_A", "Current", "current_a"],
-    "Voltage":      ["DC_Voltage_V", "DC_Voltage", "Voltage", "dc_voltage_v"],
-    "Torque":       ["ESC_Torque_Nm", "Torque", "esc_torque_nm"],
-    "Total_Weight": ["Total_Weight_kg", "total_weight_kg"],
-    "Accel_X":      ["Accel_X_g", "accel_x_g"],
-    "Accel_Y":      ["Accel_Y_g", "accel_y_g"],
-    "Accel_Z":      ["Accel_Z_g", "accel_z_g"],
-    "ESC_Pressure": ["ESC_Inlet_Pressure_Bar", "esc_inlet_pressure_bar"],
-    "ESC_Flow":     ["ESC_Inlet_Flow_Lpm", "esc_inlet_flow_lpm"],
-    "Motor_Flow":   ["Motor_Flow_Lpm", "motor_flow_lpm"],
+    "Time":         ["Timestamp", "Time", "T", "elapsed"],
+    "Thrust":       ["Net_Thrust_N", "Thrust", "Force_N", "ThrustN", "Net_Thrust"],
+    "RPM":          ["Actual_RPM", "RPM", "Motor_RPM"],
+    "Cmd_RPM":      ["Commanded_RPM", "Cmd_RPM", "Target_RPM"],
+    "Motor_Temp":   ["Motor_Temp_C", "Motor_Temp"],
+    "ESC_Temp":     ["ESC_Temp_C", "ESC_Temp"],
+    "Power":        ["Power_W", "Power"],
+    "Current":      ["Current_A", "Current"],
+    "Voltage":      ["DC_Voltage_V", "DC_Voltage", "Voltage"],
+    "Torque":       ["ESC_Torque_Nm", "Torque", "Net_Torque"],
+    "Total_Weight": ["Total_Weight_kg", "Total_Weight"],
+    "Accel_X":      ["Accel_X_g", "Accel_X"],
+    "Accel_Y":      ["Accel_Y_g", "Accel_Y"],
+    "Accel_Z":      ["Accel_Z_g", "Accel_Z"],
+    "ESC_Pressure": ["ESC_Inlet_Pressure_Bar", "ESC_Inlet_Pressure"],
+    "ESC_Flow":     ["ESC_Inlet_Flow_Lpm", "ESC_Inlet_Flow"],
+    "Motor_Flow":   ["Motor_Flow_Lpm", "Motor_Flow"],
 }
 
 
@@ -90,14 +90,28 @@ def _parse_raw(raw: bytes, name: str, logs: list):
 
 
 def normalize_columns(df: pd.DataFrame, logs: list) -> pd.DataFrame:
-    """Rename columns using COLUMN_ALIASES map."""
-    rename_map = {}
+    """
+    Rename columns to canonical names using COLUMN_ALIASES map.
+    Matching is case-insensitive so any capitalisation of the source
+    column name will be found automatically.
+    """
+    # Build a lowercase lookup: lowercase_alias -> canonical
+    _lower_map = {}
     for canonical, aliases in COLUMN_ALIASES.items():
         for alias in aliases:
-            if alias in df.columns and canonical not in df.columns:
-                rename_map[alias] = canonical
-                logs.append(f"🔀 {alias} → {canonical}")
-                break
+            _lower_map[alias.lower()] = canonical
+
+    # Build a lowercase -> original column name map from the dataframe
+    _df_lower = {col.lower(): col for col in df.columns}
+
+    rename_map = {}
+    for lower_alias, canonical in _lower_map.items():
+        if lower_alias in _df_lower and canonical not in rename_map.values():
+            original_col = _df_lower[lower_alias]
+            if original_col not in rename_map and canonical not in df.columns:
+                rename_map[original_col] = canonical
+                logs.append(f"🔀 {original_col} → {canonical}")
+
     return df.rename(columns=rename_map)
 
 
