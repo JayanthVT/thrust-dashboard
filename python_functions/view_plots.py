@@ -43,14 +43,18 @@ def render_custom_plot(df: pd.DataFrame, df2, label_run1: str, label_run2: str):
                   if c not in _EXCLUDE and pd.api.types.is_numeric_dtype(df[c])]
     _none_opts = ["None"] + _plot_cols
 
+    # ── Fixed colours per Y axis (cycles for unlimited axes) ──
+    _Y_COLOURS = ["#f97316", "#38bdf8", "#a78bfa", "#4ade80",
+                  "#fb923c", "#22d3ee", "#c084fc", "#86efac"]
+
     # ── Axis selectors ──
     _x_default = "Time"   if "Time"   in _plot_cols else _plot_cols[0]
     _y_default = "Thrust" if "Thrust" in _plot_cols else (
                  "RPM"    if "RPM"    in _plot_cols else _plot_cols[1])
 
-    # Session state tracks how many Y axes are active (1–3)
-    if "plt_y_count" not in st.session_state:
-        st.session_state["plt_y_count"] = 1
+    # Session state tracks list of extra Y columns (unlimited)
+    if "plt_extra_y" not in st.session_state:
+        st.session_state["plt_extra_y"] = []
 
     # X + Y1 always shown
     _ax1, _ax2, _ax_btn_add, _ax_btn_rem = st.columns([2, 2, 1, 1])
@@ -59,70 +63,44 @@ def render_custom_plot(df: pd.DataFrame, df2, label_run1: str, label_run2: str):
     y_col = _ax2.selectbox("Y1 axis", _plot_cols,
                             index=_plot_cols.index(_y_default), key="plt_y")
 
-    _ycount = st.session_state["plt_y_count"]
-    if _ax_btn_add.button("＋ Y axis", use_container_width=True,
-                          disabled=_ycount >= 3, key="plt_add_y"):
-        st.session_state["plt_y_count"] += 1
+    if _ax_btn_add.button("＋ Y axis", use_container_width=True, key="plt_add_y"):
+        st.session_state["plt_extra_y"].append("None")
         st.rerun()
     if _ax_btn_rem.button("－ Y axis", use_container_width=True,
-                          disabled=_ycount <= 1, key="plt_rem_y"):
-        st.session_state["plt_y_count"] -= 1
+                          disabled=len(st.session_state["plt_extra_y"]) == 0,
+                          key="plt_rem_y"):
+        st.session_state["plt_extra_y"].pop()
         st.rerun()
 
-    _ycount   = st.session_state["plt_y_count"]
-    _none_opts = ["None"] + _plot_cols
+    # Show extra Y axis selectors
+    _extra_y_cols = []
+    _none_opts    = ["None"] + _plot_cols
+    for _yi, _yval in enumerate(st.session_state["plt_extra_y"]):
+        _yn = st.selectbox(
+            f"Y{_yi + 2} axis", _none_opts,
+            index=_none_opts.index(_yval) if _yval in _none_opts else 0,
+            key=f"plt_y_extra_{_yi}"
+        )
+        st.session_state["plt_extra_y"][_yi] = _yn
+        _extra_y_cols.append(_yn)
 
-    # Show Y2 / Y3 only if added
-    y2_col = "None"
-    y3_col = "None"
-    if _ycount >= 2:
-        _ay2, _ay3_placeholder = st.columns(2)
-        y2_col = _ay2.selectbox("Y2 axis", _none_opts, index=0, key="plt_y2")
-        if _ycount >= 3:
-            y3_col = _ay3_placeholder.selectbox("Y3 axis", _none_opts, index=0, key="plt_y3")
+    # ── Controls row — Type + Time window only ──
+    _ctrl1, _ctrl2, _ctrl3, _ctrl4 = st.columns([1, 1, 2, 2])
+    _plt_type   = _ctrl1.radio("Type", ["Line", "Scatter"], key="plt_type")
+    _use_window = _ctrl2.checkbox("Time\nwindow", value=False, key="plt_win")
 
-    # ── Style controls — one row, only show controls for active axes ──
-    _DASH_MAP  = {"Solid": "solid", "Dashed": "dash", "Dotted": "dot", "DashDot": "dashdot"}
-    _DASH_OPTS = list(_DASH_MAP.keys())
-
-    # Always: Y1 colour + line, Type, Range slider, Time window
-    # Add Y2/Y3 style only if active
-    _base_cols = [1, 2]                                        # Y1 colour + line
-    if _ycount >= 2: _base_cols += [1, 2]                     # + Y2 colour + line
-    if _ycount >= 3: _base_cols += [1, 2]                     # + Y3 colour + line
-    _base_cols += [1, 1, 1, 2]                                 # Type, slider, window, from/to
-
-    _scols = st.columns(_base_cols)
-    _si = 0
-
-    _c1 = _scols[_si].color_picker("Y1", value="#f97316", key=f"col1_{y_col}"); _si += 1
-    _d1 = _scols[_si].selectbox("Y1 line", _DASH_OPTS, index=0,
-                                 key=f"dash1_{y_col}", label_visibility="collapsed"); _si += 1
-    _c2, _d2 = "#38bdf8", "Dashed"
-    if _ycount >= 2:
-        _c2 = _scols[_si].color_picker("Y2", value="#38bdf8", key=f"col2_{y2_col}"); _si += 1
-        _d2 = _scols[_si].selectbox("Y2 line", _DASH_OPTS, index=1,
-                                     key=f"dash2_{y2_col}", label_visibility="collapsed"); _si += 1
-    _c3, _d3 = "#a78bfa", "Dotted"
-    if _ycount >= 3:
-        _c3 = _scols[_si].color_picker("Y3", value="#a78bfa", key=f"col3_{y3_col}"); _si += 1
-        _d3 = _scols[_si].selectbox("Y3 line", _DASH_OPTS, index=2,
-                                     key=f"dash3_{y3_col}", label_visibility="collapsed"); _si += 1
-
-    _plt_type    = _scols[_si].radio("Type", ["Line", "Scatter"], key="plt_type"); _si += 1
-    _show_rs     = _scols[_si].checkbox("Range\nslider", value=True,  key="plt_rangeslider"); _si += 1
-    _use_window  = _scols[_si].checkbox("Time\nwindow",  value=False, key="plt_win"); _si += 1
-
-    _plt_tmin, _plt_tmax = 0.0, float(df["Time"].max()) if "Time" in df.columns else 0.0
+    _plt_tmin = 0.0
+    _plt_tmax = float(df["Time"].max()) if "Time" in df.columns else 0.0
     if _use_window and "Time" in df.columns:
-        _plt_tmin = _s10.number_input("From (s)", value=0.0,
-                                       max_value=float(df["Time"].max()),
-                                       step=1.0, key="plt_tmin",
-                                       label_visibility="collapsed")
-        _plt_tmax = st.number_input("To (s)", value=float(df["Time"].max()),
-                                     max_value=float(df["Time"].max()),
-                                     step=1.0, key="plt_tmax",
-                                     label_visibility="collapsed")
+        _plt_tmin = _ctrl3.number_input("From (s)", value=0.0,
+                                         max_value=float(df["Time"].max()),
+                                         step=1.0, key="plt_tmin")
+        _plt_tmax = _ctrl4.number_input("To (s)", value=float(df["Time"].max()),
+                                         max_value=float(df["Time"].max()),
+                                         step=1.0, key="plt_tmax")
+    else:
+        _df_plot  = df.copy()
+        _df_plot2 = df2.copy() if df2 is not None else None
 
     if _use_window and "Time" in df.columns:
         _df_plot  = df[(df["Time"] >= _plt_tmin) & (df["Time"] <= _plt_tmax)].copy()
@@ -136,85 +114,70 @@ def render_custom_plot(df: pd.DataFrame, df2, label_run1: str, label_run2: str):
     _df_plot = _df_plot.iloc[::_step]
     _ds_note = f"({len(_df_plot):,} pts)"
 
-    # ── Derived values ──
     _BG = "#0d0f14"; _PP = "#13161e"; _GR = "#1e2130"; _TX = "#c8ccd8"
     _ms = "lines" if _plt_type == "Line" else "markers"
-    _mz = 3      if _plt_type == "Scatter" else 4
-    _has_y2 = y2_col != "None" and y2_col in _df_plot.columns
-    _has_y3 = y3_col != "None" and y3_col in _df_plot.columns
+    _mz = 3 if _plt_type == "Scatter" else 4
 
-    # ── Build figure ──
+    # Active extra Y columns (ignore "None")
+    _active_extras = [(i, col) for i, col in enumerate(_extra_y_cols)
+                      if col != "None" and col in _df_plot.columns]
+
     fig = go.Figure()
 
     # Y1 trace
+    _c1 = _Y_COLOURS[0]
     fig.add_trace(go.Scatter(
         x=_df_plot[x_col], y=_df_plot[y_col], mode=_ms,
         name=f"{y_col} ({label_run1})",
-        line=dict(color=_c1, width=1.6, dash=_DASH_MAP[_d1]) if _plt_type == "Line" else None,
-        marker=dict(size=_mz, color=_c1), yaxis="y1",
+        line=dict(color=_c1, width=1.6) if _plt_type == "Line" else None,
+        marker=dict(size=_mz, color=_c1), yaxis="y",
         hovertemplate=f"<b>{x_col}</b>: %{{x:.3f}}<br>"
                       f"<b>{y_col}</b>: %{{y:.3f}}<extra>{label_run1}</extra>",
     ))
 
-    # Y2 trace
-    if _has_y2:
+    # Extra Y traces
+    for _ei, _ecol in _active_extras:
+        _ec = _Y_COLOURS[(_ei + 1) % len(_Y_COLOURS)]
+        _yaxis_id = f"y{_ei + 2}"
         fig.add_trace(go.Scatter(
-            x=_df_plot[x_col], y=_df_plot[y2_col], mode=_ms,
-            name=f"{y2_col} ({label_run1})",
-            line=dict(color=_c2, width=1.4, dash=_DASH_MAP[_d2]) if _plt_type == "Line" else None,
-            marker=dict(size=_mz, color=_c2), yaxis="y2",
+            x=_df_plot[x_col], y=_df_plot[_ecol], mode=_ms,
+            name=f"{_ecol} ({label_run1})",
+            line=dict(color=_ec, width=1.4) if _plt_type == "Line" else None,
+            marker=dict(size=_mz, color=_ec), yaxis=_yaxis_id,
             hovertemplate=f"<b>{x_col}</b>: %{{x:.3f}}<br>"
-                          f"<b>{y2_col}</b>: %{{y:.3f}}<extra>{label_run1}</extra>",
-        ))
-
-    # Y3 trace
-    if _has_y3:
-        fig.add_trace(go.Scatter(
-            x=_df_plot[x_col], y=_df_plot[y3_col], mode=_ms,
-            name=f"{y3_col} ({label_run1})",
-            line=dict(color=_c3, width=1.2, dash=_DASH_MAP[_d3]) if _plt_type == "Line" else None,
-            marker=dict(size=_mz, color=_c3), yaxis="y3",
-            hovertemplate=f"<b>{x_col}</b>: %{{x:.3f}}<br>"
-                          f"<b>{y3_col}</b>: %{{y:.3f}}<extra>{label_run1}</extra>",
+                          f"<b>{_ecol}</b>: %{{y:.3f}}<extra>{label_run1}</extra>",
         ))
 
     # Compare run traces
     if _df_plot2 is not None:
         _step2    = max(1, len(_df_plot2) // 5000)
         _df_plot2 = _df_plot2.iloc[::_step2]
-        _CMP_C1   = "#fb923c"; _CMP_C2 = "#22d3ee"; _CMP_C3 = "#c084fc"
-
         if x_col in _df_plot2.columns and y_col in _df_plot2.columns:
             fig.add_trace(go.Scatter(
                 x=_df_plot2[x_col], y=_df_plot2[y_col], mode=_ms,
                 name=f"{y_col} ({label_run2})",
-                line=dict(color=_CMP_C1, width=1.4, dash="dot") if _plt_type == "Line" else None,
-                marker=dict(size=_mz, color=_CMP_C1, symbol="diamond"), yaxis="y1",
+                line=dict(color=_c1, width=1.2, dash="dot") if _plt_type == "Line" else None,
+                marker=dict(size=_mz, color=_c1, symbol="diamond"), yaxis="y",
                 hovertemplate=f"<b>{x_col}</b>: %{{x:.3f}}<br>"
                               f"<b>{y_col}</b>: %{{y:.3f}}<extra>{label_run2}</extra>",
             ))
-        if _has_y2 and y2_col in _df_plot2.columns:
-            fig.add_trace(go.Scatter(
-                x=_df_plot2[x_col], y=_df_plot2[y2_col], mode=_ms,
-                name=f"{y2_col} ({label_run2})",
-                line=dict(color=_CMP_C2, width=1.2, dash="dot") if _plt_type == "Line" else None,
-                marker=dict(size=_mz, color=_CMP_C2, symbol="diamond"), yaxis="y2",
-                hovertemplate=f"<b>{x_col}</b>: %{{x:.3f}}<br>"
-                              f"<b>{y2_col}</b>: %{{y:.3f}}<extra>{label_run2}</extra>",
-            ))
-        if _has_y3 and y3_col in _df_plot2.columns:
-            fig.add_trace(go.Scatter(
-                x=_df_plot2[x_col], y=_df_plot2[y3_col], mode=_ms,
-                name=f"{y3_col} ({label_run2})",
-                line=dict(color=_CMP_C3, width=1.0, dash="dot") if _plt_type == "Line" else None,
-                marker=dict(size=_mz, color=_CMP_C3, symbol="diamond"), yaxis="y3",
-                hovertemplate=f"<b>{x_col}</b>: %{{x:.3f}}<br>"
-                              f"<b>{y3_col}</b>: %{{y:.3f}}<extra>{label_run2}</extra>",
-            ))
+        for _ei, _ecol in _active_extras:
+            _ec = _Y_COLOURS[(_ei + 1) % len(_Y_COLOURS)]
+            _yaxis_id = f"y{_ei + 2}"
+            if _ecol in _df_plot2.columns:
+                fig.add_trace(go.Scatter(
+                    x=_df_plot2[x_col], y=_df_plot2[_ecol], mode=_ms,
+                    name=f"{_ecol} ({label_run2})",
+                    line=dict(color=_ec, width=1.0, dash="dot") if _plt_type == "Line" else None,
+                    marker=dict(size=_mz, color=_ec, symbol="diamond"), yaxis=_yaxis_id,
+                    hovertemplate=f"<b>{x_col}</b>: %{{x:.3f}}<br>"
+                                  f"<b>{_ecol}</b>: %{{y:.3f}}<extra>{label_run2}</extra>",
+                ))
 
     # ── Layout ──
-    # Shrink x domain to make room for Y3 axis on far right
-    _x_domain = [0, 0.82] if _has_y3 else ([0, 0.88] if _has_y2 else [0, 1.0])
+    _n_extra  = len(_active_extras)
+    _r_margin = max(60, 60 + _n_extra * 60)
+    _x_domain = [0, max(0.60, 1.0 - _n_extra * 0.10)]
 
     _layout = dict(
         plot_bgcolor=_BG, paper_bgcolor=_PP,
@@ -225,7 +188,7 @@ def render_custom_plot(df: pd.DataFrame, df2, label_run1: str, label_run2: str):
             showline=True, linecolor="#2a2d3a",
             tickfont=dict(color="#6b7280"),
             domain=_x_domain,
-            rangeslider=dict(visible=_show_rs, thickness=0.06),
+            rangeslider=dict(visible=True, thickness=0.06),
         ),
         yaxis=dict(
             title=dict(text=y_col, font=dict(color=_c1)),
@@ -235,44 +198,39 @@ def render_custom_plot(df: pd.DataFrame, df2, label_run1: str, label_run2: str):
         ),
         legend=dict(bgcolor="#13161e", bordercolor="#2a2d3a", borderwidth=1,
                     font=dict(color=_TX)),
-        margin=dict(l=60, r=120, t=40, b=50),
+        margin=dict(l=60, r=_r_margin, t=40, b=50),
         hovermode="x unified",
-        height=530 if _show_rs else 460,
+        height=530,
     )
 
-    if _has_y2:
-        _layout["yaxis2"] = dict(
-            title=dict(text=y2_col, font=dict(color=_c2)),
-            tickfont=dict(color=_c2),
+    # Add yaxis2, yaxis3... for each extra axis
+    for _ei, _ecol in _active_extras:
+        _ec       = _Y_COLOURS[(_ei + 1) % len(_Y_COLOURS)]
+        _axis_key = f"yaxis{_ei + 2}"
+        _pos      = round(1.0 - _ei * 0.10, 2)
+        _layout[_axis_key] = dict(
+            title=dict(text=_ecol, font=dict(color=_ec)),
+            tickfont=dict(color=_ec),
             overlaying="y", side="right",
-            showgrid=False, showline=True, linecolor="#2a2d3a",
-        )
-
-    if _has_y3:
-        _layout["yaxis3"] = dict(
-            title=dict(text=y3_col, font=dict(color=_c3)),
-            tickfont=dict(color=_c3),
-            overlaying="y", side="right",
-            anchor="free", position=0.94,
+            anchor="free", position=_pos,
             showgrid=False, showline=True, linecolor="#2a2d3a",
         )
 
     fig.update_layout(**_layout)
     st.plotly_chart(fig, use_container_width=True)
+
+    _extra_labels = "".join([f"  |  Y{i+2}: **{c}**" for i, c in _active_extras])
     st.caption(
-        f"X: **{x_col}**  |  Y1: **{y_col}**"
-        + (f"  |  Y2: **{y2_col}**" if _has_y2 else "")
-        + (f"  |  Y3: **{y3_col}**" if _has_y3 else "")
+        f"X: **{x_col}**  |  Y1: **{y_col}**" + _extra_labels
         + (f"  |  vs **{label_run2}**" if _df_plot2 is not None else "")
         + f"  |  {_ds_note}"
     )
 
     # ── Save Plot button ──
     _sp1, _sp2 = st.columns([3, 1])
-    _auto_title = (f"{y_col} vs {x_col}"
-                   + (f" & {y2_col}" if _has_y2 else "")
-                   + (f" & {y3_col}" if _has_y3 else ""))
-    _title_key  = f"plot_title_{x_col}_{y_col}_{y2_col}_{y3_col}"
+    _extra_names  = " & ".join([c for _, c in _active_extras])
+    _auto_title   = f"{y_col} vs {x_col}" + (f" & {_extra_names}" if _extra_names else "")
+    _title_key    = f"plot_title_{x_col}_{y_col}_{'_'.join([c for _,c in _active_extras])}"
     _plot_title_input = _sp1.text_input(
         "Plot title for report", value=_auto_title,
         key=_title_key, label_visibility="collapsed",
@@ -282,34 +240,26 @@ def render_custom_plot(df: pd.DataFrame, df2, label_run1: str, label_run2: str):
         if "saved_plots" not in st.session_state:
             st.session_state["saved_plots"] = []
 
-        # Render as matplotlib PNG for PDF (uses chosen colours)
+        # Render as matplotlib PNG for PDF
         with plt.style.context(DARK):
             _pdf_fig, _pdf_ax1 = plt.subplots(figsize=(11, 3.4))
             _dfp = _df_plot
             _pdf_ax1.plot(_dfp[x_col], _dfp[y_col],
-                          color=_c1, linewidth=1.4,
-                          linestyle={"Solid":"-","Dashed":"--","Dotted":":","DashDot":"-."}[_d1],
-                          label=y_col)
+                          color=_c1, linewidth=1.4, label=y_col)
             _pdf_ax1.set_xlabel(x_col, fontsize=8)
             _pdf_ax1.set_ylabel(y_col, color=_c1, fontsize=8)
             _pdf_ax1.tick_params(axis="y", colors=_c1)
-            if _has_y2:
-                _pdf_ax2 = _pdf_ax1.twinx()
-                _pdf_ax2.plot(_dfp[x_col], _dfp[y2_col],
-                              color=_c2, linewidth=1.2,
-                              linestyle={"Solid":"-","Dashed":"--","Dotted":":","DashDot":"-."}[_d2],
-                              label=y2_col)
-                _pdf_ax2.set_ylabel(y2_col, color=_c2, fontsize=8)
-                _pdf_ax2.tick_params(axis="y", colors=_c2)
-            if _has_y3:
-                _pdf_ax3 = _pdf_ax1.twinx()
-                _pdf_ax3.spines["right"].set_position(("axes", 1.12))
-                _pdf_ax3.plot(_dfp[x_col], _dfp[y3_col],
-                              color=_c3, linewidth=1.0,
-                              linestyle={"Solid":"-","Dashed":"--","Dotted":":","DashDot":"-."}[_d3],
-                              label=y3_col)
-                _pdf_ax3.set_ylabel(y3_col, color=_c3, fontsize=8)
-                _pdf_ax3.tick_params(axis="y", colors=_c3)
+            _prev_ax = _pdf_ax1
+            for _ei, _ecol in _active_extras:
+                _ec   = _Y_COLOURS[(_ei + 1) % len(_Y_COLOURS)]
+                _axi  = _prev_ax.twinx()
+                if _ei > 0:
+                    _axi.spines["right"].set_position(("axes", 1.0 + _ei * 0.12))
+                _axi.plot(_dfp[x_col], _dfp[_ecol],
+                          color=_ec, linewidth=1.2, label=_ecol)
+                _axi.set_ylabel(_ecol, color=_ec, fontsize=8)
+                _axi.tick_params(axis="y", colors=_ec)
+                _prev_ax = _axi
             _pdf_fig.legend(loc="upper left", fontsize=8, bbox_to_anchor=(0.08, 0.95))
             _pdf_fig.tight_layout()
         _png = fig_to_png(_pdf_fig)
@@ -325,7 +275,6 @@ def render_custom_plot(df: pd.DataFrame, df2, label_run1: str, label_run2: str):
             st.session_state["saved_plots"].append({
                 "title": _save_title, "png": _png,
                 "x": x_col, "y": y_col,
-                "y2": y2_col if _has_y2 else None,
             })
             st.toast(f"Saved: {_save_title}", icon="✅")
 
