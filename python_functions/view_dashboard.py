@@ -42,20 +42,23 @@ def render_test_summary(df: pd.DataFrame):
         _mcols[3].metric("Duration",      f"{df['Time'].max():.1f} s")
         return
 
-    # ── Row 1: 4 key metrics ──
-    _rpm_idx     = df["RPM"].idxmax()
-    _pr          = df.loc[_rpm_idx]
-    _pr_rpm      = _pr["RPM"]
-    _peak_thrust = df["Thrust"].max()     if "Thrust"     in df.columns else None
-    _max_esc     = df["ESC_Temp"].max()   if "ESC_Temp"   in df.columns else None
-    _max_motor   = df["Motor_Temp"].max() if "Motor_Temp" in df.columns else None
+    # ── Row 1: 5 key metrics ──
+    _rpm_idx      = df["RPM"].idxmax()
+    _pr           = df.loc[_rpm_idx]
+    _pr_rpm       = _pr["RPM"]
+    _peak_thrust  = df["Thrust"].max()        if "Thrust"     in df.columns else None
+    _max_esc      = df["ESC_Temp"].max()      if "ESC_Temp"   in df.columns else None
+    _max_motor    = df["Motor_Temp"].max()    if "Motor_Temp" in df.columns else None
+    _peak_torque  = df["Torque"].abs().max()  if "Torque"     in df.columns else None
 
-    _r1 = st.columns(4)
+    _r1 = st.columns(5)
     _r1[0].metric("Peak RPM",       f"{int(_pr_rpm):,}")
     _r1[1].metric("Peak Thrust",    f"{_peak_thrust:.1f} N"  if _peak_thrust is not None else "—",
                   help="Maximum thrust over full run")
-    _r1[2].metric("Max ESC Temp",   f"{_max_esc:.1f} °C"    if _max_esc    is not None else "—")
-    _r1[3].metric("Max Motor Temp", f"{_max_motor:.1f} °C"  if _max_motor  is not None else "—")
+    _r1[2].metric("Peak Torque",    f"{_peak_torque:.2f} Nm" if _peak_torque is not None else "—",
+                  help="Maximum absolute torque over full run")
+    _r1[3].metric("Max ESC Temp",   f"{_max_esc:.1f} °C"    if _max_esc    is not None else "—")
+    _r1[4].metric("Max Motor Temp", f"{_max_motor:.1f} °C"  if _max_motor  is not None else "—")
 
     st.divider()
 
@@ -76,23 +79,26 @@ def render_test_summary(df: pd.DataFrame):
     if len(_band) == 0:
         st.warning(f"No data within ±{_tol} RPM of {_lookup_rpm}.")
     else:
-        _lv   = _band["Voltage"].mean()    if "Voltage"    in _band.columns else None
-        _li   = _band["Current"].mean()    if "Current"    in _band.columns else None
-        _lpe  = (_lv * _li)               if (_lv and _li)                  else None
-        _lt   = _band["Thrust"].mean()     if "Thrust"     in _band.columns else None
-        _lmt  = _band["Motor_Temp"].mean() if "Motor_Temp" in _band.columns else None
-        _let  = _band["ESC_Temp"].mean()   if "ESC_Temp"   in _band.columns else None
+        _lv   = _band["Voltage"].mean()         if "Voltage"    in _band.columns else None
+        _li   = _band["Current"].mean()         if "Current"    in _band.columns else None
+        _lpe  = (_lv * _li)                    if (_lv and _li)                  else None
+        _lt   = _band["Thrust"].mean()          if "Thrust"     in _band.columns else None
+        _ltor = _band["Torque"].abs().mean()    if "Torque"     in _band.columns else None
+        _lmt  = _band["Motor_Temp"].mean()      if "Motor_Temp" in _band.columns else None
+        _let  = _band["ESC_Temp"].mean()        if "ESC_Temp"   in _band.columns else None
         _lrpm = _band["RPM"].mean()
 
         st.caption(f"Mean over {len(_band)} rows  |  actual RPM: {_lrpm:.1f}")
-        _lr = st.columns(6)
+        _lr = st.columns(7)
         _lr[0].metric("Actual RPM",       f"{_lrpm:.1f}")
-        _lr[1].metric("DC Voltage",       f"{_lv:.1f} V"  if _lv  is not None else "—")
-        _lr[2].metric("Current",          f"{_li:.1f} A"  if _li  is not None else "—")
-        _lr[3].metric("Electrical Power", f"{_lpe:.0f} W" if _lpe is not None else "—",
+        _lr[1].metric("DC Voltage",       f"{_lv:.1f} V"   if _lv   is not None else "—")
+        _lr[2].metric("Current",          f"{_li:.1f} A"   if _li   is not None else "—")
+        _lr[3].metric("Electrical Power", f"{_lpe:.0f} W"  if _lpe  is not None else "—",
                       help="V × I")
-        _lr[4].metric("Thrust",           f"{_lt:.1f} N"  if _lt  is not None else "—")
-        _lr[5].metric("Motor / ESC Temp",
+        _lr[4].metric("Thrust",           f"{_lt:.1f} N"   if _lt   is not None else "—")
+        _lr[5].metric("Torque",           f"{_ltor:.2f} Nm" if _ltor is not None else "—",
+                      help="|Torque| — absolute value of mean torque in band")
+        _lr[6].metric("Motor / ESC Temp",
                       f"{_lmt:.1f} / {_let:.1f} °C"
                       if (_lmt is not None and _let is not None) else "—")
 
