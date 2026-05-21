@@ -19,6 +19,7 @@ import sys
 import json
 import importlib
 from pathlib import Path
+from PIL import Image
 
 import numpy as np
 import pandas as pd
@@ -71,9 +72,12 @@ init_db(DB_PATH)
 # ─────────────────────────────────────────────
 # PAGE CONFIG
 # ─────────────────────────────────────────────
+_LOGO_PATH = BASE_DIR / "ideaforge-logo.jpeg"
+_tab_icon   = Image.open(_LOGO_PATH) if _LOGO_PATH.exists() else "🚀"
+
 st.set_page_config(
     page_title="Thrust Test Rig Dashboard",
-    page_icon="🚀",
+    page_icon=_tab_icon,
     layout="wide",
 )
 
@@ -112,7 +116,16 @@ st.markdown("""
 # SIDEBAR
 # ─────────────────────────────────────────────
 with st.sidebar:
-    st.markdown("## 🚀 Thrust Test Rig")
+    # ── Branding ──
+    if _LOGO_PATH.exists():
+        st.image(str(_LOGO_PATH), width=120)
+    st.markdown(
+        "<div style='font-size:1.1rem;font-weight:700;color:#e0e0e0;margin:4px 0 0 0;'>"
+        "ideaForge</div>"
+        "<div style='font-size:0.75rem;color:#9ca3af;margin-bottom:8px;'>"
+        "Thrust Rig Dashboard</div>",
+        unsafe_allow_html=True
+    )
     st.divider()
 
     _folders = fetch_folders(DB_PATH)
@@ -142,34 +155,38 @@ with st.sidebar:
     if st.session_state.get("mode") not in ("library", "explorer"):
         st.session_state["mode"] = "explorer"
 
-    st.divider()
-    st.markdown("**Compare mode**")
-    _compare_on = st.toggle("Compare two runs", value=False, key="compare_on")
-    if _compare_on:
-        _all_runs = fetch_all_runs(db_path=DB_PATH)
-        _run_opts = {r["display_name"]: r["filename"] for r in _all_runs}
-        if len(_run_opts) < 2:
-            st.caption("Need at least 2 saved runs.")
+    # ── Controls only shown when a log is open ──
+    if st.session_state.get("mode") == "library":
+        st.divider()
+        st.markdown("**Compare mode**")
+        _compare_on = st.toggle("Compare two runs", value=False, key="compare_on")
+        if _compare_on:
+            _all_runs = fetch_all_runs(db_path=DB_PATH)
+            _run_opts = {r["display_name"]: r["filename"] for r in _all_runs}
+            if len(_run_opts) < 2:
+                st.caption("Need at least 2 saved runs.")
+            else:
+                _cmp_name = st.selectbox("Compare against:",
+                                         list(_run_opts.keys()), key="cmp_run_select")
+                st.session_state["cmp_filename"] = _run_opts[_cmp_name]
         else:
-            _cmp_name = st.selectbox("Compare against:",
-                                     list(_run_opts.keys()), key="cmp_run_select")
-            st.session_state["cmp_filename"] = _run_opts[_cmp_name]
+            st.session_state.pop("cmp_filename", None)
+
+        st.divider()
+        show_debug        = st.toggle("Debug log",               value=False)
+        show_meas         = st.toggle("Measurable Parameters",   value=False)
+        show_raw          = st.toggle("Cleaned data table",      value=False)
+        show_raw_original = st.toggle("Original raw data",       value=False)
+        st.divider()
+        rpm_filter = st.slider("Min RPM filter", 0, 500, 0, step=50,
+                               help="Exclude rows below this RPM")
     else:
-        st.session_state.pop("cmp_filename", None)
-
-    st.divider()
-    show_debug        = st.toggle("Debug log",               value=False)
-    show_meas         = st.toggle("Measurable Parameters",   value=False)
-    show_raw          = st.toggle("Cleaned data table",      value=False)
-    show_raw_original = st.toggle("Original raw data",       value=False)
-    st.divider()
-    rpm_filter = st.slider("Min RPM filter", 0, 500, 0, step=50,
-                           help="Exclude rows below this RPM")
-
-# ─────────────────────────────────────────────
-# MAIN AREA
-# ─────────────────────────────────────────────
-st.title("Thrust Test Rig — Engineering Dashboard")
+        # Default values so the rest of the script doesn't crash when on explorer
+        show_debug        = False
+        show_meas         = False
+        show_raw          = False
+        show_raw_original = False
+        rpm_filter        = 0
 
 mode = st.session_state.get("mode", "upload")
 
@@ -183,6 +200,7 @@ if mode == "explorer":
 # ══════════════════════════════════════════════
 # DASHBOARD MODE (library or upload)
 # ══════════════════════════════════════════════
+st.title("Thrust Test Rig — Engineering Dashboard")
 df        = None
 logs      = []
 run_meta  = None
