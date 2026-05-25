@@ -109,6 +109,8 @@ st.markdown("""
       background: #13161e; border: 1px solid #2a2d3a; border-radius: 10px;
       padding: 16px 20px; margin-bottom: 16px;
   }
+  /* Remove default Streamlit top padding */
+  .block-container { padding-top: 1rem !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -188,6 +190,8 @@ with st.sidebar:
 # ─────────────────────────────────────────────
 # MAIN AREA
 # ─────────────────────────────────────────────
+st.title("Thrust Test Rig — Engineering Dashboard")
+
 mode = st.session_state.get("mode", "upload")
 
 # ══════════════════════════════════════════════
@@ -289,17 +293,16 @@ if not _compare_active:
         _date    = run_meta.get("test_date", "")
         _dur     = f"{(run_meta['duration_s'] or 0):.0f}s" if run_meta.get("duration_s") else ""
         st.markdown(
-            f"<div style='font-size:1.3rem;font-weight:600;color:#e0e0e0;"
-            f"font-family:Space Mono,monospace;padding:4px 0 2px 0;'>"
-            f"{_display}</div>"
-            f"<div style='font-size:0.75rem;color:#6b7280;margin-bottom:12px;'>"
-            f"{_date}" + (f" &nbsp;·&nbsp; {_dur}" if _dur else "") + "</div>",
+            f"<div style='margin-bottom:4px;'>"
+            f"<span style='font-size:2rem;font-weight:700;color:#ffffff;"
+            f"font-family:Space Mono,monospace;letter-spacing:-0.5px;'>{_display}</span>"
+            f"&nbsp;&nbsp;<span style='font-size:0.8rem;color:#6b7280;'>"
+            f"{_date}" + (f" · {_dur}" if _dur else "") + f"</span></div>",
             unsafe_allow_html=True
         )
 
     # ── Dashboard sections (hidden in compare mode) ──
     render_test_summary(df)
-    st.divider()
     if show_meas:
         render_measurable_parameters(df)
         st.divider()

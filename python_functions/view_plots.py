@@ -30,7 +30,6 @@ def render_custom_plot(df: pd.DataFrame, df2, label_run1: str, label_run2: str):
     except ImportError:
         _plotly_ok = False
 
-    st.divider()
     st.subheader("📈 Custom Plot")
 
     if not _plotly_ok:
