@@ -25,7 +25,7 @@ COLUMN_ALIASES = {
     "Power":        ["Power_W", "Power"],
     "Current":      ["Current_A", "Current"],
     "Voltage":      ["DC_Voltage_V", "DC_Voltage", "Voltage"],
-    "Torque":       ["ESC_Torque_Nm", "Torque", "Net_Torque"],
+    "Torque":       ["Torque(0.23m)", "Net_Torque"],
     "Total_Weight": ["Total_Weight_kg", "Total_Weight"],
     "Accel_X":      ["Accel_X_g", "Accel_X"],
     "Accel_Y":      ["Accel_Y_g", "Accel_Y"],

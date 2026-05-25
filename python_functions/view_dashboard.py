@@ -63,7 +63,8 @@ def render_test_summary(df: pd.DataFrame):
     st.divider()
 
     # ── RPM lookup ──
-    st.caption("🔍 **RPM lookup** — type any RPM to see values at that operating point")
+    st.subheader("🔍 **RPM lookup**")
+    st.caption('— type any RPM to see values at that operating point')
     _lc1, _lc2 = st.columns([1, 1])
     _lookup_rpm = _lc1.number_input(
         "Target RPM", min_value=0, max_value=int(_pr_rpm),
@@ -101,6 +102,7 @@ def render_test_summary(df: pd.DataFrame):
         _lr[6].metric("Motor / ESC Temp",
                       f"{_lmt:.1f} / {_let:.1f} °C"
                       if (_lmt is not None and _let is not None) else "—")
+        st.divider()
 
 
 # ─────────────────────────────────────────────
