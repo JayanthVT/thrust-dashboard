@@ -46,25 +46,48 @@ def render_test_summary(df: pd.DataFrame):
     _rpm_idx      = df["RPM"].idxmax()
     _pr           = df.loc[_rpm_idx]
     _pr_rpm       = _pr["RPM"]
+    _pr_time      = _pr["Time"] if "Time" in df.columns else None
+
+    # Find timestamps for each peak using original raw Timestamp column if available
+    def _raw_ts(idx):
+        """Return original timestamp string at a given dataframe index, or elapsed time."""
+        try:
+            t_elapsed = df.loc[idx, "Time"]
+            mins  = int(t_elapsed // 60)
+            secs  = t_elapsed % 60
+            return f"{mins:02d}:{secs:05.2f}"
+        except Exception:
+            return "—"
+
     _peak_thrust  = df["Thrust"].max()        if "Thrust"     in df.columns else None
+    _thrust_idx   = df["Thrust"].idxmax()     if "Thrust"     in df.columns else None
     _max_esc      = df["ESC_Temp"].max()      if "ESC_Temp"   in df.columns else None
+    _esc_idx      = df["ESC_Temp"].idxmax()   if "ESC_Temp"   in df.columns else None
     _max_motor    = df["Motor_Temp"].max()    if "Motor_Temp" in df.columns else None
+    _motor_idx    = df["Motor_Temp"].idxmax() if "Motor_Temp" in df.columns else None
     _peak_torque  = df["Torque"].abs().max()  if "Torque"     in df.columns else None
+    _torque_idx   = df["Torque"].abs().idxmax() if "Torque"   in df.columns else None
 
     _r1 = st.columns(5)
-    _r1[0].metric("Peak RPM",       f"{int(_pr_rpm):,}")
-    _r1[1].metric("Peak Thrust",    f"{_peak_thrust:.1f} N"  if _peak_thrust is not None else "—",
-                  help="Maximum thrust over full run")
-    _r1[2].metric("Peak Torque",    f"{_peak_torque:.2f} Nm" if _peak_torque is not None else "—",
-                  help="Maximum absolute torque over full run")
-    _r1[3].metric("Max ESC Temp",   f"{_max_esc:.1f} °C"    if _max_esc    is not None else "—")
-    _r1[4].metric("Max Motor Temp", f"{_max_motor:.1f} °C"  if _max_motor  is not None else "—")
+    _r1[0].metric("Peak RPM", f"{int(_pr_rpm):,}",
+                  help=f"Timestamp: {_raw_ts(_rpm_idx)}")
+    _r1[1].metric("Peak Thrust",
+                  f"{_peak_thrust:.1f} N" if _peak_thrust is not None else "—",
+                  help=f"Maximum thrust over full run\nTimestamp: {_raw_ts(_thrust_idx) if _thrust_idx is not None else '—'}")
+    _r1[2].metric("Peak Torque",
+                  f"{_peak_torque:.2f} Nm" if _peak_torque is not None else "—",
+                  help=f"Maximum absolute torque over full run\nTimestamp: {_raw_ts(_torque_idx) if _torque_idx is not None else '—'}")
+    _r1[3].metric("Max ESC Temp",
+                  f"{_max_esc:.1f} °C" if _max_esc is not None else "—",
+                  help=f"Maximum ESC temperature over full run\nTimestamp: {_raw_ts(_esc_idx) if _esc_idx is not None else '—'}")
+    _r1[4].metric("Max Motor Temp",
+                  f"{_max_motor:.1f} °C" if _max_motor is not None else "—",
+                  help=f"Maximum motor temperature over full run\nTimestamp: {_raw_ts(_motor_idx) if _motor_idx is not None else '—'}")
 
     st.divider()
 
     # ── RPM lookup ──
-    st.subheader("🔍 **RPM lookup**")
-    st.caption('— type any RPM to see values at that operating point')
+    st.caption("🔍 **RPM lookup** — type any RPM to see values at that operating point")
     _lc1, _lc2 = st.columns([1, 1])
     _lookup_rpm = _lc1.number_input(
         "Target RPM", min_value=0, max_value=int(_pr_rpm),
@@ -102,7 +125,6 @@ def render_test_summary(df: pd.DataFrame):
         _lr[6].metric("Motor / ESC Temp",
                       f"{_lmt:.1f} / {_let:.1f} °C"
                       if (_lmt is not None and _let is not None) else "—")
-        st.divider()
 
 
 # ─────────────────────────────────────────────

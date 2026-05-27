@@ -109,8 +109,6 @@ st.markdown("""
       background: #13161e; border: 1px solid #2a2d3a; border-radius: 10px;
       padding: 16px 20px; margin-bottom: 16px;
   }
-  /* Remove default Streamlit top padding */
-  .block-container { padding-top: 1rem !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -160,25 +158,26 @@ with st.sidebar:
     # ── Tools — only when a log is open ──
     if st.session_state.get("mode") == "library":
         st.divider()
-        st.markdown("**Tools**")
-        _compare_on = st.toggle("Compare two runs", value=False, key="compare_on")
-        if _compare_on:
-            _all_runs = fetch_all_runs(db_path=DB_PATH)
-            _run_opts = {r["display_name"]: r["filename"] for r in _all_runs}
-            if len(_run_opts) < 2:
-                st.caption("Need at least 2 saved runs.")
+        with st.expander("⚙️ Tools", expanded=False):
+            _compare_on = st.toggle("Compare two runs", value=False, key="compare_on")
+            if _compare_on:
+                _all_runs = fetch_all_runs(db_path=DB_PATH)
+                _run_opts = {r["display_name"]: r["filename"] for r in _all_runs}
+                if len(_run_opts) < 2:
+                    st.caption("Need at least 2 saved runs.")
+                else:
+                    _cmp_name = st.selectbox("Compare against:",
+                                             list(_run_opts.keys()), key="cmp_run_select")
+                    st.session_state["cmp_filename"] = _run_opts[_cmp_name]
             else:
-                _cmp_name = st.selectbox("Compare against:",
-                                         list(_run_opts.keys()), key="cmp_run_select")
-                st.session_state["cmp_filename"] = _run_opts[_cmp_name]
-        else:
-            st.session_state.pop("cmp_filename", None)
+                st.session_state.pop("cmp_filename", None)
 
-        show_meas         = st.toggle("Measurable Parameters",   value=False)
-        show_init_params  = st.toggle("Initial Parameters",      value=False)
-        show_debug        = st.toggle("Debug log",               value=False)
-        show_raw          = st.toggle("Cleaned data table",      value=False)
-        show_raw_original = st.toggle("Original raw data",       value=False)
+            show_meas        = st.toggle("Measurable Parameters", value=False)
+            show_init_params = st.toggle("Initial Parameters",    value=False)
+            show_debug       = st.toggle("Debug log",             value=False)
+
+        show_raw          = st.toggle("Cleaned data table",  value=False)
+        show_raw_original = st.toggle("Original raw data",   value=False)
         st.divider()
     else:
         show_debug        = False
@@ -190,8 +189,6 @@ with st.sidebar:
 # ─────────────────────────────────────────────
 # MAIN AREA
 # ─────────────────────────────────────────────
-st.title("Thrust Test Rig — Engineering Dashboard")
-
 mode = st.session_state.get("mode", "upload")
 
 # ══════════════════════════════════════════════
@@ -289,20 +286,27 @@ _compare_active = st.session_state.get("compare_on", False) and df2 is not None
 
 if not _compare_active:
     if run_meta:
-        _display = run_meta.get("display_name") or filename or "—"
-        _date    = run_meta.get("test_date", "")
-        _dur     = f"{(run_meta['duration_s'] or 0):.0f}s" if run_meta.get("duration_s") else ""
-        st.markdown(
-            f"<div style='margin-bottom:4px;'>"
-            f"<span style='font-size:2rem;font-weight:700;color:#ffffff;"
-            f"font-family:Space Mono,monospace;letter-spacing:-0.5px;'>{_display}</span>"
-            f"&nbsp;&nbsp;<span style='font-size:0.8rem;color:#6b7280;'>"
-            f"{_date}" + (f" · {_dur}" if _dur else "") + f"</span></div>",
-            unsafe_allow_html=True
-        )
+        saved = run_meta.get("saved_at", "")[:10]
+        st.markdown(f"""
+        <div class="summary-card">
+          <div style="font-size:0.75rem;color:#6b7280;font-family:'Space Mono',monospace">
+            {run_meta['test_date']} &nbsp;·&nbsp; saved {saved}
+          </div>
+          <div style="font-size:1.2rem;font-weight:600;color:#e0e0e0;margin:4px 0">
+            {run_meta['display_name']}
+          </div>
+          <div style="font-size:0.8rem;color:#9ca3af">
+            {int(run_meta['num_rows'] or 0):,} rows &nbsp;|&nbsp;
+            {(run_meta['duration_s'] or 0):.1f}s &nbsp;|&nbsp;
+            Max Thrust {f"{run_meta['max_thrust_n']:.1f} N" if run_meta['max_thrust_n'] is not None else "—"} &nbsp;|&nbsp;
+            Max RPM {f"{int(run_meta['max_rpm']):,}" if run_meta['max_rpm'] is not None else "—"}
+          </div>
+        </div>
+        """, unsafe_allow_html=True)
 
     # ── Dashboard sections (hidden in compare mode) ──
     render_test_summary(df)
+    st.divider()
     if show_meas:
         render_measurable_parameters(df)
         st.divider()
@@ -321,8 +325,20 @@ render_saved_plots_gallery()
 if show_raw:
     st.divider()
     st.subheader("Cleaned data table")
-    st.caption(f"{len(df):,} rows × {df.shape[1]} cols — column names normalised, time converted to elapsed seconds, NaN rows dropped")
-    st.dataframe(df.reset_index(drop=True), use_container_width=True)
+    st.caption(f"{len(df):,} rows × {df.shape[1]} cols — column names normalised, Time shown as MM:SS.ms, NaN rows dropped")
+    _df_display = df.reset_index(drop=True).copy()
+    if "Time" in _df_display.columns:
+        def _fmt_ts(t):
+            try:
+                t = float(t)
+                mins = int(t // 60)
+                secs = t % 60
+                ms   = int(round((secs % 1) * 1000))
+                return f"{mins:02d}:{int(secs):02d}.{ms:03d}"
+            except Exception:
+                return str(t)
+        _df_display["Time"] = _df_display["Time"].apply(_fmt_ts)
+    st.dataframe(_df_display, use_container_width=True)
 
 if show_raw_original:
     st.divider()
