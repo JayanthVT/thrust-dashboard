@@ -32,6 +32,10 @@ COLUMN_ALIASES = {
     "Accel_Z":      ["Accel_Z_g", "Accel_Z"],
     "ESC_Pressure": ["ESC_Inlet_Pressure_Bar", "ESC_Inlet_Pressure"],
     "ESC_Flow":     ["ESC_Inlet_Flow_Lpm", "ESC_Inlet_Flow"],
+    "ESC_Inlet_Temp_C":   ["ESC_Inlet_Temp_C", "esc_inlet_temp", "ESC_Inlet_Temp"],
+    "Motor_Inlet_Temp_C": ["Motor_Inlet_Temp_C", "motor_inlet_temp", "Motor_Inlet_Temp"],
+    "Fin_Inlet_Temp_C":   ["Fin_Inlet_Temp_C", "fin_inlet_temp", "Fin_Inlet_Temp"],
+    "Fin_Outlet_Temp_C":  ["Fin_Outlet_Temp_C", "fin_outlet_temp", "Fin_Outlet_Temp"],
     "Motor_Flow":   ["Motor_Flow_Lpm", "Motor_Flow"],
 }
 

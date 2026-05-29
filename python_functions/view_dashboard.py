@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-from python_functions.db import fetch_run, save_run
+from python_functions.db import fetch_run, save_run, update_test_param_check
 from python_functions.data_pipeline import (
     compute_stats, default_init_params, extract_test_date
 )
@@ -32,7 +32,7 @@ def _safe(row, col):
 # ─────────────────────────────────────────────
 def render_test_summary(df: pd.DataFrame):
     """Render test summary — 4 key metrics then RPM lookup."""
-    st.subheader("Test summary")
+    st.subheader("📊 Test Summary")
 
     if "RPM" not in df.columns or df.empty:
         _mcols = st.columns(4)
@@ -87,7 +87,8 @@ def render_test_summary(df: pd.DataFrame):
     st.divider()
 
     # ── RPM lookup ──
-    st.caption("🔍 **RPM lookup** — type any RPM to see values at that operating point")
+    st.subheader("🔍 RPM Lookup")
+    st.caption("Type any RPM to see values at that operating point")
     _lc1, _lc2 = st.columns([1, 1])
     _lookup_rpm = _lc1.number_input(
         "Target RPM", min_value=0, max_value=int(_pr_rpm),
@@ -365,3 +366,127 @@ def render_initial_parameters(df: pd.DataFrame, filename: str):
     # Store in session state so it's accessible outside the expander
     st.session_state[f"ip_{filename}"] = ip
     return ip
+
+# ─────────────────────────────────────────────
+# TEST PARAMETER CHECK
+# ─────────────────────────────────────────────
+
+_DEFAULT_TPC_ROWS = [
+    "Coolant reservoir ~ 5 ltrs",
+    "Flow rate ~ 8 LPM",
+    "Pressure, flow rate, temperature values at ESC inlet",
+    "Pressure, flow rate, temperature values at Motor inlet",
+    "Temperature values at Fintube / Radiator inlet and Outlet",
+    "Accelerometer at Motor Cover plate",
+    "Pressure, flow rate, values at pump inlet",
+    "Camera installed inside thrust rig",
+    (
+        "Increase in any of the following temperatures during the step test "
+        "at any point.\n"
+        "  a. ESC Inlet coolant temp. (45 °C)\n"
+        "  b. ESC core temp. (45 °C)\n"
+        "  c. Motor Inlet coolant temp. (50 °C)\n"
+        "  d. Motor core temp. (100 °C)"
+    ),
+    "Current limit not exceeding 120 A for ESC",
+    "Torque of bolts checked after run",
+    "All joints are leakage free",
+]
+
+
+def render_test_parameter_check(filename: str):
+    """Render the Test Parameter Check section and persist to SQLite."""
+
+    # ── Load saved rows from DB, fall back to defaults ──
+    _db_row = fetch_run(filename) if filename else None
+    _saved  = []
+    if _db_row and _db_row.get("test_param_check"):
+        try:
+            _saved = json.loads(_db_row["test_param_check"])
+        except Exception:
+            pass
+
+    # Initialise session state on first load
+    _sk = f"tpc_{filename}"
+    if _sk not in st.session_state:
+        if _saved:
+            st.session_state[_sk] = _saved
+        else:
+            st.session_state[_sk] = [
+                {"criteria": c, "passed": False, "failed": False, "remarks": ""}
+                for c in _DEFAULT_TPC_ROWS
+            ]
+
+    rows = st.session_state[_sk]
+
+    st.subheader("✅ Test Parameter Check")
+
+    # ── Column headers ──
+    _h = st.columns([5, 1, 1, 3, 1])
+    for col, lbl in zip(_h, ["Parameter / Criteria", "Pass", "Fail", "Remarks", ""]):
+        col.markdown(f"**{lbl}**")
+
+    # ── Render each row ──
+    to_delete = None
+    for i, row in enumerate(rows):
+        c1, c2, c3, c4, c5 = st.columns([5, 1, 1, 3, 1])
+
+        row["criteria"] = c1.text_area(
+            f"criteria_{i}", value=row["criteria"],
+            label_visibility="collapsed", height=68, key=f"tpc_crit_{filename}_{i}"
+        )
+
+        new_pass = c2.checkbox(
+            "Pass", value=row["passed"],
+            key=f"tpc_pass_{filename}_{i}",
+            label_visibility="collapsed"
+        )
+        new_fail = c3.checkbox(
+            "Fail", value=row["failed"],
+            key=f"tpc_fail_{filename}_{i}",
+            label_visibility="collapsed"
+        )
+
+        # Mutual exclusion: last ticked wins
+        if new_pass and not row["passed"]:
+            row["passed"] = True
+            row["failed"] = False
+            if not row["remarks"]:
+                row["remarks"] = "OKAY"
+        elif new_fail and not row["failed"]:
+            row["passed"] = False
+            row["failed"] = True
+            if row["remarks"] == "OKAY":
+                row["remarks"] = ""
+        elif not new_pass and row["passed"]:
+            row["passed"] = False
+            if row["remarks"] == "OKAY":
+                row["remarks"] = ""
+        elif not new_fail and row["failed"]:
+            row["failed"] = False
+
+        row["remarks"] = c4.text_input(
+            f"remarks_{i}", value=row["remarks"],
+            label_visibility="collapsed", key=f"tpc_rem_{filename}_{i}"
+        )
+
+        if c5.button("🗑", key=f"tpc_del_{filename}_{i}", help="Delete row"):
+            to_delete = i
+
+    if to_delete is not None:
+        rows.pop(to_delete)
+        st.rerun()
+
+    # ── Add row button ──
+    if st.button("➕ Add row", key=f"tpc_add_{filename}"):
+        rows.append({"criteria": "", "passed": False, "failed": False, "remarks": ""})
+        st.rerun()
+
+    st.divider()
+
+    # ── Save button ──
+    if st.button("💾 Save Test Parameter Check", key=f"tpc_save_{filename}", type="primary"):
+        update_test_param_check(filename, rows)
+        st.success("✅ Test Parameter Check saved.")
+
+    st.session_state[_sk] = rows

@@ -370,7 +370,7 @@ def render_update_parameters(df: pd.DataFrame, filename: str,
 # ─────────────────────────────────────────────
 # DOWNLOADS
 # ─────────────────────────────────────────────
-def render_downloads(df: pd.DataFrame, filename: str):
+def render_downloads(df: pd.DataFrame, filename: str, show_meas: bool = False):
     """Render the CSV and PDF download section."""
     st.divider()
     st.subheader("Downloads")
@@ -456,9 +456,7 @@ def render_downloads(df: pd.DataFrame, filename: str):
                 "battery_voltage_post": _col(_end_row, "Voltage", ".2f"),
                 "time_at_target_rpm":   _time_at_rpm,
                 "mechanical_power":     "",
-                "electrical_power":     f"{float(df['Voltage'].mean() * df['Current'].mean()):.0f}"
-                                        if "Voltage" in df.columns and "Current" in df.columns
-                                        else "",
+                "electrical_power":     "",
                 "mechanical_efficiency": "",
                 "overall_efficiency":    "",
                 "init_esc_temp":         _col(_start_row, "ESC_Temp", ".1f"),
@@ -473,17 +471,32 @@ def render_downloads(df: pd.DataFrame, filename: str):
             _ip_sess = st.session_state.get(f"ip_{filename}", {})
             pdf_data.update({k: str(v) for k, v in _ip_sess.items()})
 
-            # Efficiency results if calculated
-            _eff = st.session_state.get("eff_results", {})
-            if _eff:
-                _pm = _eff.get("P_mech", (None, None))[0]
-                _pd = _eff.get("P_DC",   (None, None))[0]
-                _eo = _eff.get("eta_overall", (None, None))[0]
-                _em = _eff.get("eta_mech",    (None, None))[0]
-                if _pm: pdf_data["mechanical_power"]     = f"{_pm:.0f}"
-                if _pd: pdf_data["electrical_power"]     = f"{_pd:.0f}"
-                if _eo: pdf_data["overall_efficiency"]   = f"{_eo:.4f}"
-                if _em: pdf_data["mechanical_efficiency"] = f"{_em:.2f}"
+            # Test parameter check
+            _tpc = st.session_state.get(f"tpc_{filename}")
+            if not _tpc and _db_row_dl and _db_row_dl.get("test_param_check"):
+                try:
+                    _tpc = json.loads(_db_row_dl["test_param_check"])
+                except Exception:
+                    _tpc = None
+            if _tpc:
+                pdf_data["test_param_check"] = _tpc
+
+            # Efficiency results — only if Measurable Parameters was toggled on
+            if show_meas:
+                # Base electrical power from raw df
+                if "Voltage" in df.columns and "Current" in df.columns:
+                    pdf_data["electrical_power"] = f"{float(df['Voltage'].mean() * df['Current'].mean()):.0f}"
+                # Override with more precise eff_results if user ran the calculator
+                _eff = st.session_state.get("eff_results", {})
+                if _eff:
+                    _pm = _eff.get("P_mech", (None, None))[0]
+                    _pd = _eff.get("P_DC",   (None, None))[0]
+                    _eo = _eff.get("eta_overall", (None, None))[0]
+                    _em = _eff.get("eta_mech",    (None, None))[0]
+                    if _pm: pdf_data["mechanical_power"]      = f"{_pm:.0f}"
+                    if _pd: pdf_data["electrical_power"]      = f"{_pd:.0f}"
+                    if _eo: pdf_data["overall_efficiency"]    = f"{_eo:.4f}"
+                    if _em: pdf_data["mechanical_efficiency"] = f"{_em:.2f}"
 
             # Saved plots
             _saved    = st.session_state.get("saved_plots", [])

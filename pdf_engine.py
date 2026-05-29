@@ -223,6 +223,56 @@ def build_pdf_report(data, chart_images, run_name):
     story.append(t_ip)
     story.append(Spacer(1, 4*mm))
 
+    # ── TEST PARAMETER CHECK ──
+    tpc_rows = data.get("test_param_check")
+    if tpc_rows:
+        try:
+            if isinstance(tpc_rows, str):
+                import json as _json
+                tpc_rows = _json.loads(tpc_rows)
+        except Exception:
+            tpc_rows = []
+
+    if tpc_rows:
+        sty_tpc_lbl  = _S("tpclbl", fontName="Helvetica",      fontSize=8,  textColor=BLACK, leading=11)
+        sty_tpc_pass = _S("tpcpas", fontName="Helvetica-Bold",  fontSize=8,  textColor=rl_colors.HexColor("#1B5E20"))
+        sty_tpc_fail = _S("tpcfail",fontName="Helvetica-Bold",  fontSize=8,  textColor=rl_colors.HexColor("#B71C1C"))
+        sty_tpc_rem  = _S("tpcrem", fontName="Helvetica",       fontSize=8,  textColor=BLACK)
+        sty_tpc_hdr  = _S("tpchdr", fontName="Helvetica-Bold",  fontSize=8,  textColor=BLACK)
+
+        CW3 = [W*0.55, W*0.12, W*0.33]
+        tpc_data = [[
+            Paragraph("Parameter / Criteria", sty_tpc_hdr),
+            Paragraph("Pass / Fail",           sty_tpc_hdr),
+            Paragraph("Remarks",               sty_tpc_hdr),
+        ]]
+        tpc_cmds = [
+            ("GRID",          (0,0),(-1,-1), 0.4, MGRAY),
+            ("VALIGN",        (0,0),(-1,-1), "MIDDLE"),
+            ("TOPPADDING",    (0,0),(-1,-1), 3),
+            ("BOTTOMPADDING", (0,0),(-1,-1), 3),
+            ("LEFTPADDING",   (0,0),(-1,-1), 5),
+            ("BACKGROUND",    (0,0),(-1,0),  LGRAY),
+        ]
+        for row in tpc_rows:
+            passed  = row.get("passed", False)
+            failed  = row.get("failed", False)
+            pf_text = "Pass" if passed else ("Fail" if failed else "—")
+            pf_sty  = sty_tpc_pass if passed else (sty_tpc_fail if failed else sty_tpc_lbl)
+            remarks = str(row.get("remarks", ""))
+            if passed and not remarks:
+                remarks = "OKAY"
+            tpc_data.append([
+                Paragraph(str(row.get("criteria", "")), sty_tpc_lbl),
+                Paragraph(pf_text,                      pf_sty),
+                Paragraph(remarks,                       sty_tpc_rem),
+            ])
+        t_tpc = Table(tpc_data, colWidths=CW3)
+        t_tpc.setStyle(TableStyle(tpc_cmds))
+        story.append(_banner("TEST PARAMETER CHECK", sty_sec, BLUE, W, pad=5))
+        story.append(t_tpc)
+        story.append(Spacer(1, 4*mm))
+
     # ── RESULTS ──
     res_rows = [
         ("Max. Temp — ESC Inlet",      "max_esc_inlet_temp",    "°C"),
@@ -253,6 +303,9 @@ def build_pdf_report(data, chart_images, run_name):
         ("BACKGROUND",    (0,0),(0,-1),  LGRAY),
     ]
     for lbl, key, unit in res_rows:
+        v = data.get(key, "")
+        if v in (None, "", "—"):
+            continue
         res_data.append([
             Paragraph(lbl,  sty_res),
             pv(key),

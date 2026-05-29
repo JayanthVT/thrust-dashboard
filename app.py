@@ -59,7 +59,8 @@ from python_functions.charts import (
 )
 from python_functions.view_explorer import render_explorer
 from python_functions.view_dashboard import (
-    render_test_summary, render_measurable_parameters, render_initial_parameters
+    render_test_summary, render_measurable_parameters, render_initial_parameters,
+    render_test_parameter_check
 )
 from python_functions.view_plots import (
     render_custom_plot, render_saved_plots_gallery,
@@ -174,6 +175,7 @@ with st.sidebar:
 
             show_meas        = st.toggle("Measurable Parameters", value=False)
             show_init_params = st.toggle("Initial Parameters",    value=False)
+            show_test_check  = st.toggle("Test Parameter Check",  value=False)
             show_debug       = st.toggle("Debug log",             value=False)
 
         show_raw          = st.toggle("Cleaned data table",  value=False)
@@ -183,6 +185,7 @@ with st.sidebar:
         show_debug        = False
         show_meas         = False
         show_init_params  = False
+        show_test_check   = False
         show_raw          = False
         show_raw_original = False
 
@@ -313,6 +316,9 @@ if not _compare_active:
     if show_init_params:
         render_initial_parameters(df, filename)
         st.divider()
+    if show_test_check:
+        render_test_parameter_check(filename)
+        st.divider()
 
 else:
     st.info(f"🔀 Compare mode: **{label_run1}** (solid) vs **{label_run2}** (dashed/dotted)")
@@ -348,4 +354,4 @@ if show_raw_original:
 
 # ── Update parameters + downloads ──
 render_update_parameters(df, filename, LOGS_DIR, mode)
-render_downloads(df, filename)
+render_downloads(df, filename, show_meas)

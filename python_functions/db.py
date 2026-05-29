@@ -43,11 +43,15 @@ def init_db(db_path=None):
                 init_params    TEXT
             )
         """)
-        # Migrate existing databases — add folder column if missing
-        try:
-            conn.execute("ALTER TABLE runs ADD COLUMN folder TEXT DEFAULT 'Uncategorised'")
-        except Exception:
-            pass  # column already exists
+        # Migrate existing databases — add columns if missing
+        for _col_sql in [
+            "ALTER TABLE runs ADD COLUMN folder TEXT DEFAULT 'Uncategorised'",
+            "ALTER TABLE runs ADD COLUMN test_param_check TEXT",
+        ]:
+            try:
+                conn.execute(_col_sql)
+            except Exception:
+                pass  # column already exists
         conn.commit()
 
 
@@ -96,6 +100,18 @@ def update_init_params(filename, init_params, db_path=None):
         conn.execute(
             "UPDATE runs SET init_params=?, saved_at=? WHERE filename=?",
             (json.dumps(init_params),
+             datetime.now().isoformat(timespec="seconds"),
+             filename)
+        )
+        conn.commit()
+
+
+def update_test_param_check(filename, rows, db_path=None):
+    """Save test parameter check rows (list of dicts) for a run."""
+    with get_conn(db_path) as conn:
+        conn.execute(
+            "UPDATE runs SET test_param_check=?, saved_at=? WHERE filename=?",
+            (json.dumps(rows),
              datetime.now().isoformat(timespec="seconds"),
              filename)
         )
