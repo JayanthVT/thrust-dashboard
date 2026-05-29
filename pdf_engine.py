@@ -69,11 +69,11 @@ def build_pdf_report(data, chart_images, run_name):
 
     # Styles
     sty_h1   = _S("h1",   fontName="Helvetica-Bold",   fontSize=14, textColor=WHITE,  alignment=TA_CENTER)
-    sty_meta = _S("meta", fontName="Helvetica",         fontSize=8,  textColor=rl_colors.HexColor("#AAAAAA"), alignment=TA_CENTER)
+    sty_meta = _S("meta", fontName="Helvetica",         fontSize=8,  textColor=BLACK, alignment=TA_CENTER)
     sty_sec  = _S("sec",  fontName="Helvetica-Bold",    fontSize=9,  textColor=WHITE,  alignment=TA_LEFT)
     sty_lbl  = _S("lbl",  fontName="Helvetica-Bold",    fontSize=8,  textColor=rl_colors.HexColor("#222222"))
     sty_grp  = _S("grp",  fontName="Helvetica-Oblique", fontSize=7,  textColor=rl_colors.HexColor("#666666"))
-    sty_val  = _S("val",  fontName="Helvetica",         fontSize=8,  textColor=rl_colors.HexColor("#1A73E8"))
+    sty_val  = _S("val",  fontName="Helvetica",         fontSize=8,  textColor=BLACK)
     sty_obs  = _S("obs",  fontName="Helvetica",         fontSize=8,  textColor=BLACK,  leading=13)
     sty_chk  = _S("chk",  fontName="Helvetica",         fontSize=7,  textColor=rl_colors.HexColor("#333333"))
     sty_res  = _S("res",  fontName="Helvetica-Bold",    fontSize=8,  textColor=NAVY)
@@ -139,27 +139,51 @@ def build_pdf_report(data, chart_images, run_name):
 
     # ── INITIAL PARAMETERS ──
     CW = [W*0.18, W*0.32, W*0.38, W*0.12]
-    ip_rows = [
-        ("Reservoir",   "Capacity",              "res_capacity",         "L"),
-        ("",            "Composition",           "res_composition",      ""),
-        ("",            "Temperature",           "res_temperature",      "°C"),
-        ("Duty Cycle",  "Duty Cycle & Flowrate", "duty_cycle",           ""),
-        ("Temperature", "Initial ESC Temp",      "init_esc_temp",        "°C"),
-        ("",            "Initial Motor Temp",    "init_motor_temp",      "°C"),
-        ("",            "Ambient",               "ambient_temp",         "°C"),
-        ("",            "ESC Inlet Coolant",     "esc_inlet_coolant",    "°C"),
-        ("",            "Motor Inlet Coolant",   "motor_inlet_coolant",  "°C"),
-        ("Flowrate",    "ESC Inlet",             "esc_inlet_flow",       "LPM"),
-        ("",            "Motor Inlet",           "motor_inlet_flow",     "LPM"),
-        ("Pressure",    "ESC Inlet",             "esc_inlet_pressure",   "Bar"),
-        ("",            "Motor Inlet",           "motor_inlet_pressure", "Bar"),
-        ("Battery",     "Battery Voltage",       "battery_voltage",      "V"),
-        ("",            "SOC",                   "battery_soc",          ""),
-        ("",            "SOH",                   "battery_soh",          ""),
-        ("Fintube",     "Inlet Temperature",     "fin_inlet_temp",       "°C"),
-        ("",            "Outlet Temperature",    "fin_outlet_temp",      "°C"),
-        ("Target RPM",  "",                      "target_rpm",           "RPM"),
+
+    # Each entry: (group_label, span, label, key, unit)
+    # span = how many rows this group label covers
+    ip_groups = [
+        ("Reservoir",   3, [
+            ("Capacity",              "res_capacity",         "L"),
+            ("Composition",           "res_composition",      ""),
+            ("Temperature",           "res_temperature",      "°C"),
+        ]),
+        ("Duty Cycle",  1, [
+            ("Duty Cycle & Flowrate", "duty_cycle",           ""),
+        ]),
+        ("Temperature", 5, [
+            ("Initial ESC Temp",      "init_esc_temp",        "°C"),
+            ("Initial Motor Temp",    "init_motor_temp",      "°C"),
+            ("Ambient",               "ambient_temp",         "°C"),
+            ("ESC Inlet Coolant",     "esc_inlet_coolant",    "°C"),
+            ("Motor Inlet Coolant",   "motor_inlet_coolant",  "°C"),
+        ]),
+        ("Flowrate",    2, [
+            ("ESC Inlet",             "esc_inlet_flow",       "LPM"),
+            ("Motor Inlet",           "motor_inlet_flow",     "LPM"),
+        ]),
+        ("Pressure",    2, [
+            ("ESC Inlet",             "esc_inlet_pressure",   "Bar"),
+            ("Motor Inlet",           "motor_inlet_pressure", "Bar"),
+        ]),
+        ("Battery",     3, [
+            ("Battery Voltage",       "battery_voltage",      "V"),
+            ("SOC",                   "battery_soc",          ""),
+            ("SOH",                   "battery_soh",          ""),
+        ]),
+        ("Fintube",     2, [
+            ("Inlet Temperature",     "fin_inlet_temp",       "°C"),
+            ("Outlet Temperature",    "fin_outlet_temp",      "°C"),
+        ]),
     ]
+
+    sty_grp_bold = _S("grpbold",
+                      fontName="Helvetica-Bold",
+                      fontSize=9,
+                      textColor=rl_colors.HexColor("#222222"),
+                      alignment=TA_CENTER,
+                      leading=11)
+
     ip_data = []
     ip_cmds = [
         ("GRID",          (0,0),(-1,-1), 0.4, MGRAY),
@@ -167,14 +191,32 @@ def build_pdf_report(data, chart_images, run_name):
         ("TOPPADDING",    (0,0),(-1,-1), 3),
         ("BOTTOMPADDING", (0,0),(-1,-1), 3),
         ("LEFTPADDING",   (0,0),(-1,-1), 5),
+        ("BACKGROUND",    (0,0),(0,-1),  LGRAY),
     ]
-    for grp, lbl, key, unit in ip_rows:
-        ip_data.append([
-            Paragraph(grp,  sty_grp),
-            Paragraph(lbl,  sty_lbl),
-            pv(key),
-            Paragraph(unit, sty_chk),
-        ])
+
+    row_idx = 0
+    for grp_label, span, rows in ip_groups:
+        for i, (lbl, key, unit) in enumerate(rows):
+            if i == 0:
+                ip_data.append([
+                    Paragraph(grp_label, sty_grp_bold),
+                    Paragraph(lbl, sty_lbl),
+                    pv(key),
+                    Paragraph(unit, sty_chk),
+                ])
+            else:
+                ip_data.append([
+                    Paragraph("", sty_grp_bold),
+                    Paragraph(lbl, sty_lbl),
+                    pv(key),
+                    Paragraph(unit, sty_chk),
+                ])
+        if span > 1:
+            ip_cmds.append(
+                ("SPAN", (0, row_idx), (0, row_idx + span - 1))
+            )
+        row_idx += span
+
     t_ip = Table(ip_data, colWidths=CW)
     t_ip.setStyle(TableStyle(ip_cmds))
     story.append(_banner("INITIAL PARAMETERS", sty_sec, BLUE, W, pad=5))
@@ -237,7 +279,7 @@ def build_pdf_report(data, chart_images, run_name):
 
     # ── CHARTS ──
     if chart_images:
-        story.append(PageBreak())
+        story.append(Spacer(1, 4*mm))
         story.append(_banner("TEST CHARTS", sty_sec, NAVY, W))
         story.append(Spacer(1, 4*mm))
         for chart_title, png_bytes in chart_images:
